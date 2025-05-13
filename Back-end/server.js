@@ -52,6 +52,21 @@ const mapaCategorias = {
   jantar: 'foods,dinner'
 };
 
+// Exemplo de rota no seu server.js ou controller
+app.get("/api/roteiros/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query("SELECT * FROM roteiros WHERE id = $1", [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Roteiro não encontrado" });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erro ao buscar roteiro" });
+  }
+});
+
 // Rota de busca de pontos turísticos
 app.post('/api/search', async (req, res) => {
   const { cidade, pais, preferencias, dataIda, dataVolta } = req.body;
@@ -289,6 +304,25 @@ app.get('/api/roteiros', async (req, res) => {
     res.status(500).json({ sucesso: false, error: 'Erro ao buscar roteiros' });
   }
 });
+
+// Rota para buscar os roteiros de um usuário específico
+app.get('/api/roteiros/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const result = await pool.query('SELECT * FROM roteiros WHERE usuario_id = $1', [usuarioId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Nenhum roteiro encontrado para este usuário' });
+    }
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar roteiros do usuário:', error);
+    res.status(500).json({ message: 'Erro ao buscar roteiros do usuário' });
+  }
+});
+
 
 app.get('/api/cidade-imagem', async (req, res) => {
   const { cidade } = req.query;

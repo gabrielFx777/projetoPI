@@ -3,28 +3,54 @@ import axios from "axios"; // certifique-se de instalar: npm install axios
 import { Link } from "react-router-dom";
 import {
   PlusIcon,
+  MapIcon,
   CalendarIcon,
+  ClockIcon,
   DollarSignIcon,
+  UsersIcon,
+  StarIcon,
   DownloadIcon,
   ShareIcon,
 } from "lucide-react";
 
 export function Dashboard() {
   const [trips, setTrips] = useState([]);
+  const [cityImages, setCityImages] = useState({}); // Estado para armazenar imagens das cidades
   const user = JSON.parse(localStorage.getItem("user")); // Recupera o usuário do localStorage
+  const [plannedTripsCount, setPlannedTripsCount] = useState(0);
+  const fakeTrips = [
+    {
+      id: 1,
+      cidade: "Nova York",
+      data_ida: "2025-06-10",
+      data_volta: "2025-06-20",
+      orcamento: 2500,
+      status: "planejada",
+    },
+    {
+      id: 2,
+      cidade: "Grécia",
+      data_ida: "2025-07-01",
+      data_volta: "2025-07-05",
+      orcamento: 1200,
+      status: "completa",
+    },
+  ];
 
   // Buscar dados do backend ao carregar o componente
   useEffect(() => {
     async function fetchTrips() {
+      if (!user || !user.id) {
+        console.warn("Usuário não logado. Carregando dados fictícios.");
+        setTrips(fakeTrips);
+        return;
+      }
+
       try {
-        if (!user || !user.id) {
-          console.error("Usuário não autenticado ou ID não encontrado.");
-          return;
-        }
         const response = await axios.get(
           `http://localhost:3001/api/roteiros?usuarioId=${user.id}`
-        ); // Passa o usuarioId
-        console.log(response.data);
+        );
+        console.log(response.data.roteiros); // Verifique o que o backend está retornando
         if (Array.isArray(response.data.roteiros)) {
           setTrips(response.data.roteiros);
         } else {
@@ -34,8 +60,36 @@ export function Dashboard() {
         console.error("Erro ao buscar viagens:", error);
       }
     }
+
     fetchTrips();
-  }, [user]);
+  }, []);
+
+  // Função para buscar a imagem da cidade
+  const fetchCityImage = async (cidade) => {
+    try {
+      const response = await axios.get(
+        `http://localhost:3001/api/cidade-imagem?cidade=${cidade}`
+      );
+      setCityImages((prevState) => ({
+        ...prevState,
+        [cidade]: response.data.imagemUrl, // Armazena a imagem pela chave da cidade
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar imagem da cidade:", error);
+    }
+  };
+
+  // Chama a função de buscar imagem para cada cidade das viagens quando a lista de viagens mudar
+  useEffect(() => {
+    if (trips.length > 0) {
+      trips.forEach((trip) => {
+        if (!cityImages[trip.cidade]) {
+          // Evita buscar imagens novamente se já estiver no estado
+          fetchCityImage(trip.cidade);
+        }
+      });
+    }
+  }, [trips, cityImages]);
 
   return (
     <div className="bg-gray-50 min-h-screen py-8">
@@ -60,7 +114,7 @@ export function Dashboard() {
                 <div className="px-4 py-5 sm:p-6">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 bg-blue-100 rounded-md p-3">
-                      <CalendarIcon className="h-6 w-6 text-blue-600" />
+                      <MapIcon className="h-6 w-6 text-blue-600" />
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
@@ -82,7 +136,7 @@ export function Dashboard() {
                 <div className="px-4 py-5 sm:p-6">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
-                      <DollarSignIcon className="h-6 w-6 text-green-600" />
+                      <CalendarIcon className="h-6 w-6 text-green-600" />
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
@@ -129,9 +183,16 @@ export function Dashboard() {
             {trips.map((trip) => (
               <div
                 key={trip.id}
-                className="bg-white overflow-hidden shadow rounded-lg"
+                className="bg-white overflow-hidden shadow-xl rounded-lg"
               >
-                <div className="h-48 w-full overflow-hidden"></div>
+                {/* Exibe a imagem da cidade acima do nome da cidade */}
+                {cityImages[trip.cidade] && (
+                  <img
+                    src={cityImages[trip.cidade]}
+                    alt={`Imagem de ${trip.cidade}`}
+                    className="w-full h-48 object-cover rounded-t-lg"
+                  />
+                )}
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900">
                     {trip.cidade}
@@ -152,11 +213,18 @@ export function Dashboard() {
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         trip.status === "planejada"
                           ? "bg-blue-100 text-blue-800"
+                          : trip.status === "em progresso"
+                          ? "bg-yellow-100 text-yellow-800"
                           : "bg-green-100 text-green-800"
                       }`}
                     >
-                      {trip.status === "planejada" ? "Planejada" : "Completa"}
+                      {trip.status === "planejada"
+                        ? "Planejada"
+                        : trip.status === "em progresso"
+                        ? "Em Progresso"
+                        : "Completa"}
                     </span>
+
                     <div className="flex space-x-2">
                       <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
                         <DownloadIcon className="h-4 w-4" />
@@ -168,7 +236,7 @@ export function Dashboard() {
                   </div>
                   <div className="mt-4">
                     <Link
-                      to={`/itinerary/${trip.id}`}
+                      to={`/itinerary/${trip.id}`} // Passa a cidade como parâmetro
                       className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 w-full justify-center"
                     >
                       Ver Roteiro

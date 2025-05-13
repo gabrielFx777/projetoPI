@@ -15,6 +15,7 @@ import PlanTrip from "./pages/PlanTrip";
 import { Itinerary } from "./pages/Itinerary";
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/PrivateRoute";
+import { PublicRoute } from "./components/PublicRoute";
 
 export function App() {
   return (
@@ -25,18 +26,17 @@ export function App() {
           <main className="flex-grow">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-
-              {/* Usando o PrivateRoute para proteger essas rotas */}
               <Route
-                path="/dashboard"
+                path="/login"
                 element={
-                  <PrivateRoute>
-                    <Dashboard />
-                  </PrivateRoute>
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
                 }
-              />
+              />{" "}
+              <Route path="/register" element={<Register />} />
+              {/* Usando o PrivateRoute para proteger essas rotas */}
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route
                 path="/plan-trip"
                 element={

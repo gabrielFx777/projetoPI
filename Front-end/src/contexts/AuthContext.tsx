@@ -1,43 +1,50 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 // Tipagem do contexto
 interface AuthContextType {
   userName: string | null;
   setUserName: React.Dispatch<React.SetStateAction<string | null>>;
+  loading: boolean;
 }
 
-// Criação do contexto com tipagem
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Provider do contexto com tipagem
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [userName, setUserName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true); // novo estado
 
-  // Verificar se há um usuário logado ao carregar o contexto
   useEffect(() => {
     const user = localStorage.getItem("user");
     if (user) {
       try {
         const parsedUser = JSON.parse(user);
-        setUserName(parsedUser.nome); // Atualiza o nome do usuário no contexto
-      } catch {
-        setUserName(null);
+        if (parsedUser && parsedUser.nome) {
+          setUserName(parsedUser.nome);
+        }
+      } catch (error) {
+        console.error("Erro ao recuperar usuário:", error);
       }
     }
+    setLoading(false); // terminou de verificar
   }, []);
 
   return (
-    <AuthContext.Provider value={{ userName, setUserName }}>
+    <AuthContext.Provider value={{ userName, setUserName, loading }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Hook para acessar o contexto
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
