@@ -1,4 +1,6 @@
 import { useState } from "react";
+import React from "react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import {
   MapPinIcon,
@@ -43,9 +45,9 @@ const PlanTrip: React.FC = () => {
   const [preferencias, setPreferencias] = useState<string[]>([]);
   const [resultados, setResultados] = useState<PontoTuristico[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [quantidadePontos, setQuantidadePontos] = useState(5); // valor inicial padrão
 
   const handleFinalizar = (novaViagem) => {
-    // Aqui, você adiciona a nova viagem ao estado de trips
     setTrips((prevTrips) => [...prevTrips, novaViagem]);
   };
 
@@ -77,27 +79,26 @@ const PlanTrip: React.FC = () => {
     );
   };
 
-  // Função para salvar o roteiro no servidor
   const salvarRoteiroNoServidor = async (pontos: PontoTuristico[]) => {
     try {
-      const user = localStorage.getItem('user'); // Busca o usuário no localStorage
+      const user = localStorage.getItem("user");
       let usuarioId = null;
       if (user) {
         try {
-          const parsedUser = JSON.parse(user); // Faz o parse do objeto armazenado
-          usuarioId = parsedUser.id; // Acessa o ID do usuário do objeto armazenado
+          const parsedUser = JSON.parse(user);
+          usuarioId = parsedUser.id;
         } catch {
           console.error("Erro ao parsear o usuário.");
         }
       }
-  
+
       const resposta = await fetch("http://localhost:3001/api/roteiros", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          usuarioId,  // Agora o usuarioId está sendo passado corretamente
+          usuarioId,
           cidade,
           pais,
           dataIda,
@@ -106,7 +107,7 @@ const PlanTrip: React.FC = () => {
           pontos,
         }),
       });
-  
+
       const data = await resposta.json();
       if (data.sucesso) {
         console.log("Roteiro salvo com sucesso:", data.roteiro);
@@ -118,7 +119,6 @@ const PlanTrip: React.FC = () => {
     }
   };
 
-  // Função para buscar pontos turísticos
   const handleBuscar = async () => {
     setCarregando(true);
     try {
@@ -136,11 +136,11 @@ const PlanTrip: React.FC = () => {
       });
       const dados = await resposta.json();
       setResultados(dados);
-      return dados; // <-- Retorna os dados aqui
+      return dados;
     } catch (erro) {
       console.error("Erro:", erro);
       alert("Erro ao buscar.");
-      return []; // <-- Retorna array vazio em caso de erro
+      return [];
     } finally {
       setCarregando(false);
     }
@@ -157,7 +157,8 @@ const PlanTrip: React.FC = () => {
     ) {
       const dados = await handleBuscar();
       if (dados.length > 0) {
-        salvarRoteiroNoServidor(dados); // Agora você tem certeza que há dados
+        const selecionados = dados.slice(0, quantidadePontos);
+        salvarRoteiroNoServidor(selecionados);
       } else {
         alert("Nenhum ponto turístico encontrado.");
       }
@@ -180,45 +181,6 @@ const PlanTrip: React.FC = () => {
 
   const voltar = () => {
     if (etapa > 1) setEtapa(etapa - 1);
-  };
-
-  const saveItinerary = async () => {
-    const itinerary = {
-      user_id: 1, // Id real do usuário logado
-      title: "Viagem para Salvador",
-      description: "Roteiro de 5 dias na Bahia",
-      start_date: "2025-07-01",
-      end_date: "2025-07-05",
-      items: [
-        {
-          day: 1,
-          location: "Pelourinho",
-          activity: "Passeio cultural",
-          time: "10:00",
-          notes: "Comprar lembrancinhas",
-        },
-        {
-          day: 2,
-          location: "Praia do Forte",
-          activity: "Dia de praia",
-          time: "09:00",
-          notes: "Protetor solar",
-        },
-      ],
-    };
-
-    try {
-      const response = await fetch("http://localhost:3001/api/itineraries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(itinerary),
-      });
-
-      const data = await response.json();
-      alert(data.message);
-    } catch (error) {
-      console.error("Erro ao salvar o roteiro:", error);
-    }
   };
 
   return (
@@ -434,37 +396,21 @@ const PlanTrip: React.FC = () => {
         )}
 
         {etapa === 4 && (
-          <div className="mt-8">
-            {carregando ? (
-              <p className="text-blue-600 font-medium">
-                Carregando sugestões...
-              </p>
-            ) : resultados.length > 0 ? (
-              <ul className="space-y-4">
-                {/* {resultados.map((ponto) => (
-                  <li
-                    key={ponto.id}
-                    className="p-4 border rounded-lg shadow-sm bg-gray-50 hover:bg-white transition"
-                  >
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      {ponto.nome}
-                    </h3>
-                    <p className="text-sm text-gray-600">Tipo: {ponto.tipo}</p>
-                    <p className="text-sm text-gray-600">
-                      Endereço: {formatarEndereco(ponto.endereco)}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Coordenadas: {ponto.coordenadas.lat},{" "}
-                      {ponto.coordenadas.lon}
-                    </p>
-                  </li>
-                ))} */}
-              </ul>
-            ) : (
-              <p className="text-gray-500">
-                Nenhum ponto turístico encontrado.
-              </p>
-            )}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantidade de pontos turísticos que deseja visitar:
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={resultados.length}
+              value={quantidadePontos}
+              onChange={(e) => setQuantidadePontos(Number(e.target.value))}
+              className="p-3 border rounded-md w-full"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Máximo: {resultados.length} pontos encontrados.
+            </p>
           </div>
         )}
 
@@ -484,43 +430,21 @@ const PlanTrip: React.FC = () => {
           </button>
         </div>
 
-        <h2 className="text-2xl font-bold mb-4 text-gray-800 mt-10">
-          Sugestões de Pontos Turísticos
-        </h2>
-
         {resultados.length > 0 && (
           <div className="mt-10">
             <h2 className="text-2xl font-bold mb-4 text-blue-800">
               Resultados:
             </h2>
-            <ul className="space-y-4">
-              {resultados.map((ponto) => (
-                <li key={ponto.id} className="p-4 border rounded bg-gray-100">
-                  <h3 className="text-xl font-semibold">
-                    {ponto.nome || "Sem nome"}
-                  </h3>
-                  <p>Tipo: {ponto.tipo}</p>
-
-                  {ponto.endereco && (
-                    <p className="text-sm text-gray-600">
-                      Endereço: {formatarEndereco(ponto.endereco)}
-                    </p>
-                  )}
-
-                  {ponto.clima && (
-                    <div className="mt-2 text-sm text-green-700">
-                      <p>
-                        <strong>Clima:</strong> {ponto.clima.descricao}
-                      </p>
-                      <p>
-                        <strong>Temperatura:</strong> {ponto.clima.temperatura}
-                        °C
-                      </p>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <p className="mb-4 text-lg text-gray-700">
+              Seu roteiro foi gerado com sucesso! Clique no link abaixo para
+              acessá-lo:
+            </p>
+            <a
+              href={`/roteiro/${cidade}-${pais}-${dataIda}`}
+              className="text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              Acessar Roteiro
+            </a>
           </div>
         )}
       </div>

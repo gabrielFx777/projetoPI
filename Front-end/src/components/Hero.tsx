@@ -23,17 +23,17 @@ const HomePage = () => {
     {
       name: "Salvador",
       image:
-        "https://images.unsplash.com/photo-1550686041-366ad85a1355?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+      "https://media.istockphoto.com/id/539835430/pt/foto/vista-a%C3%A9rea-de-salvador-da-bahia-paisagens-urbanas-bahia-brasil.jpg?s=612x612&w=0&k=20&c=06yJS0D3nKU62zze2nAU1IljgfKSuj7jhmXEKOaLRDE="
     },
     {
       name: "Florianópolis",
       image:
-        "https://images.unsplash.com/photo-1580619305218-8423a7ef79b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+      "https://maisviagens.net.br/wp-content/uploads/2022/01/FLORIPA.jpg"
     },
     {
       name: "Bonito",
       image:
-        "https://images.unsplash.com/photo-1596402184320-417e7178b2cd?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+      "https://i0.wp.com/blog.bonitour.com.br/wp-content/uploads/2021/07/Destaques-Blog-Grutas-em-Bonito_MS-1127x600-Destaque-01.jpg"
     },
   ];
 

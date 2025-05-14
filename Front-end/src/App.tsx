@@ -3,7 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Navigate,
+  useLocation,
 } from "react-router-dom";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
@@ -16,6 +16,73 @@ import { Itinerary } from "./pages/Itinerary";
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/PrivateRoute";
 import { PublicRoute } from "./components/PublicRoute";
+import { AnimatePresence } from "framer-motion";
+import { PageTransitionWithLottie } from "./components/PageTransitionWithLottie";
+
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route
+          path="/"
+          element={
+            <PageTransitionWithLottie>
+              <Home />
+            </PageTransitionWithLottie>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <PageTransitionWithLottie>
+                <Login />
+              </PageTransitionWithLottie>
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PageTransitionWithLottie>
+              <Register />
+            </PageTransitionWithLottie>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <PageTransitionWithLottie>
+              <Dashboard />
+            </PageTransitionWithLottie>
+          }
+        />
+        <Route
+          path="/plan-trip"
+          element={
+            <PrivateRoute>
+              <PageTransitionWithLottie>
+                <PlanTrip />
+              </PageTransitionWithLottie>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/itinerary/:id"
+          element={
+            <PrivateRoute>
+              <PageTransitionWithLottie>
+                <Itinerary />
+              </PageTransitionWithLottie>
+            </PrivateRoute>
+          }
+        />
+      </Routes>
+    </AnimatePresence>
+  );
+}
 
 export function App() {
   return (
@@ -24,36 +91,7 @@ export function App() {
         <div className="flex flex-col min-h-screen bg-slate-50">
           <Header />
           <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />{" "}
-              <Route path="/register" element={<Register />} />
-              {/* Usando o PrivateRoute para proteger essas rotas */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route
-                path="/plan-trip"
-                element={
-                  <PrivateRoute>
-                    <PlanTrip />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/itinerary/:id"
-                element={
-                  <PrivateRoute>
-                    <Itinerary />
-                  </PrivateRoute>
-                }
-              />
-            </Routes>
+            <AnimatedRoutes />
           </main>
           <Footer />
         </div>
