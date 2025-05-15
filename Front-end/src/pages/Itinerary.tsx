@@ -1,27 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import {
   MapPinIcon,
   CalendarIcon,
   ClockIcon,
   DollarSignIcon,
-  UmbrellaIcon,
-  CloudIcon,
-  SunIcon,
-  UtensilsIcon,
   BedIcon,
   MapIcon,
-  LandmarkIcon,
-  DownloadIcon,
   ShareIcon,
   EditIcon,
 } from "lucide-react";
-
 export function Itinerary() {
   const { id } = useParams();
   const [activeDay, setActiveDay] = useState(1);
   const [tripData, setTripData] = useState(null);
-
+  const [loading, setLoading] = useState(true); // Estado para controle do carregamento
+  const [pontosExtras, setPontosExtras] = useState([]);
   // Função para calcular a diferença de dias entre as datas
   const calculateTotalDays = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -29,6 +24,27 @@ export function Itinerary() {
     const timeDifference = end - start;
     return Math.ceil(timeDifference / (1000 * 3600 * 24)) + 1;
   };
+  async function fetchPontosExtras() {
+    try {
+      const res = await fetch(`http://localhost:3001/api/pontos-extras/${id}`);
+      if (!res.ok) throw new Error("Erro ao buscar pontos extras");
+      const data = await res.json();
+      console.log("Pontos Extras recebidos:", data); // <---- Debug aqui
+      setPontosExtras(data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  useEffect(() => {
+    fetchTripData();
+    fetchPontosExtras();
+    const intervalId = setInterval(() => {
+      fetchTripData();
+      fetchPontosExtras();
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [id]);
 
   // Função para buscar os dados do roteiro
   const fetchTripData = async () => {
@@ -51,43 +67,32 @@ export function Itinerary() {
         accommodation: data.acomodacao,
         weather: data.previsao_tempo,
         itinerary: data.roteiro,
-        resultados: data.pontos || [],
+        resultados: data.pontos || [], // Certifique-se de que 'data.pontos' está correto
       });
     } catch (error) {
       console.error(error);
       setTripData(null);
+    } finally {
+      // Após a busca dos dados, simula um delay antes de renderizar
+      setTimeout(() => {
+        setLoading(false); // Altera o estado para falso após o delay
+      }, 2000); // Atraso de 2 segundos (2000ms)
     }
   };
 
-  useEffect(() => {
-    fetchTripData(); // Buscar os dados ao montar o componente
-
-    const intervalId = setInterval(fetchTripData, 30000); // Atualizar os dados a cada 30 segundos
-
-    // Limpeza do intervalo ao desmontar o componente
-    return () => clearInterval(intervalId);
-  }, [id]);
-
-
-// 
-// 
-// 
-// 
-// 
-// 
-// 
-// 
-// 
-  if (!tripData) return <div>Carregando...</div>;
-// 
-// 
-// 
-// 
-// 
-// 
-// 
-// 
-// 
+  // Exibição da animação enquanto os dados estão sendo carregados
+  if (loading || !tripData) {
+    return (
+      <div className="flex justify-center items-center h-[30vh]">
+        <DotLottieReact
+          src="https://lottie.host/bea39de7-5cb4-4972-85da-048547848faf/9uHUvSMkbE.lottie"
+          autoplay
+          loop
+          speed={1} // Diminui a velocidade da animação
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen py-8">
@@ -168,6 +173,49 @@ export function Itinerary() {
                 </dl>
               </div>
             </div>
+
+            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h2 className="text-lg font-medium text-gray-900">
+                  Previsão do Tempo
+                </h2>
+                <ul className="mt-4 space-y-3">
+                  {tripData.resultados.map((ponto) => (
+                    <li
+                      key={ponto.id}
+                      className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
+                    >
+                      <div className="flex items-center">
+                        {/* Aqui você pode usar um ícone baseado na descrição do clima */}
+                        <span className="h-6 w-6 text-gray-400">
+                          {/* Exemplo de ícone baseado na descrição */}
+                          {ponto.clima.descricao.includes("chuva") ? (
+                            <span>🌧️</span>
+                          ) : ponto.clima.descricao.includes("sol") ? (
+                            <span>☀️</span>
+                          ) : (
+                            <span>☁️</span>
+                          )}
+                        </span>
+                        <span className="ml-3 text-sm text-gray-900">
+                          {new Date(ponto.clima.data).toLocaleDateString(
+                            "pt-BR"
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">
+                          {ponto.clima.temperatura}°C
+                        </span>
+                        <span className="ml-2 text-gray-500">
+                          {ponto.clima.descricao}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
 
           <div className="col-span-2">
@@ -222,24 +270,12 @@ export function Itinerary() {
                     <h3 className="text-xl font-semibold">
                       {ponto.nome || "Sem nome"}
                     </h3>
-                    <p>Tipo: {ponto.tipo}</p>
+                    {/* <p>Tipo: {ponto.tipo}</p> */}
 
                     {ponto.endereco && (
                       <p className="text-sm text-gray-600">
                         Endereço: {ponto.endereco.city}, {ponto.endereco.state}
                       </p>
-                    )}
-
-                    {ponto.clima && (
-                      <div className="mt-2 text-sm text-green-700">
-                        <p>
-                          <strong>Clima:</strong> {ponto.clima.descricao}
-                        </p>
-                        <p>
-                          <strong>Temperatura:</strong>{" "}
-                          {ponto.clima.temperatura}°C
-                        </p>
-                      </div>
                     )}
                   </li>
                 ))}
@@ -261,6 +297,50 @@ export function Itinerary() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Pontos Extras do Roteiro
+              </h2>
+              {pontosExtras.length === 0 ? (
+                <p className="text-gray-500">
+                  Nenhum ponto extra encontrado para este roteiro.
+                </p>
+              ) : (
+                <ul className="space-y-4 max-h-64 overflow-y-auto">
+                  {pontosExtras.map((ponto) => (
+                    <li
+                      key={ponto.id}
+                      className="border rounded p-4 bg-gray-50"
+                    >
+                      <h3 className="text-xl font-semibold">
+                        {ponto.nome || "Sem nome"}
+                      </h3>
+
+                      {ponto.endereco && (
+                        <p>
+                          <strong>Endereço:</strong> {ponto.endereco}
+                        </p>
+                      )}
+
+                      {ponto.wikidata && (
+                        <p>
+                          <strong>Wikidata:</strong>{" "}
+                          <a
+                            href={`https://www.wikidata.org/wiki/${ponto.wikidata}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            {ponto.wikidata}
+                          </a>
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

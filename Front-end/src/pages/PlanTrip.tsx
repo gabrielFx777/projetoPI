@@ -79,7 +79,10 @@ const PlanTrip: React.FC = () => {
     );
   };
 
-  const salvarRoteiroNoServidor = async (pontos: PontoTuristico[]) => {
+  const salvarRoteiroNoServidor = async (
+    todosPontos: PontoTuristico[],
+    pontosLimitados: PontoTuristico[]
+  ) => {
     try {
       const user = localStorage.getItem("user");
       let usuarioId = null;
@@ -104,7 +107,8 @@ const PlanTrip: React.FC = () => {
           dataIda,
           dataVolta,
           preferencias,
-          pontos,
+          pontosLimitados, // só a quantidade escolhida
+          pontosExtras: todosPontos, // todos os pontos da API
         }),
       });
 
@@ -158,7 +162,7 @@ const PlanTrip: React.FC = () => {
       const dados = await handleBuscar();
       if (dados.length > 0) {
         const selecionados = dados.slice(0, quantidadePontos);
-        salvarRoteiroNoServidor(selecionados);
+        await salvarRoteiroNoServidor(dados, selecionados); // enviar todos e os limitados
       } else {
         alert("Nenhum ponto turístico encontrado.");
       }
@@ -431,17 +435,10 @@ const PlanTrip: React.FC = () => {
         </div>
 
         {resultados.length > 0 && (
-          <div className="mt-10">
-            <h2 className="text-2xl font-bold mb-4 text-blue-800">
-              Resultados:
-            </h2>
-            <p className="mb-4 text-lg text-gray-700">
-              Seu roteiro foi gerado com sucesso! Clique no link abaixo para
-              acessá-lo:
-            </p>
+          <div className="mt-10 text-blue-600 hover:text-blue-800 font-semibold text-center">
             <a
-              href={`/roteiro/${cidade}-${pais}-${dataIda}`}
-              className="text-blue-600 hover:text-blue-800 font-semibold"
+              href={`/dashboard`}
+              className="text-blue-600 hover:text-blue-800 font-semibold text-center"
             >
               Acessar Roteiro
             </a>

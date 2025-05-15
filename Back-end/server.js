@@ -71,10 +71,10 @@ app.get("/api/roteiros/:id", async (req, res) => {
 
 // Rota de busca de pontos turísticos
 app.post("/api/search", async (req, res) => {
-  const { cidade, pais, preferencias, dataIda, dataVolta, maxPontos } =
-    req.body;
+  const { cidade, pais, preferencias, dataIda, dataVolta, maxPontos } = req.body;
 
   try {
+    // Validações existentes
     if (!pais || pais.length !== 2) {
       return res.status(400).json({
         message: "O país deve ser um código ISO-3166 de 2 letras (ex: BR, US).",
@@ -100,7 +100,6 @@ app.post("/api/search", async (req, res) => {
       Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24))
     );
 
-    // Se o cliente enviar maxPontos, usamos ele (com um limite de segurança de até 100)
     const limite = Math.min(maxPontos || diffDias * 5, 100);
 
     const preferenciasValidas = preferencias
@@ -156,69 +155,38 @@ app.post("/api/search", async (req, res) => {
         ponto.name && ponto.name.trim().toLowerCase() !== "nome não disponível"
     );
 
-    // Limitar os pontos de acordo com o número máximo
     const pontosLimitados = pontosValidos.slice(0, limite);
 
-    // Salvar pontos não visíveis como opção no banco de dados
+    // NOVA PARTE: Obtenção do clima para cada dia na latitude e longitude da cidade
+    const climaPorDia = [];
+    for (let i = 0; i < diffDias; i++) {
+      const dataAtual = new Date(inicio);
+      dataAtual.setDate(inicio.getDate() + i);
 
-    // Primeiro, salva o roteiro no banco
-    const roteiroInsert = await pool.query(
-      `INSERT INTO roteiros (usuario_id, cidade, pais, data_ida, data_volta, preferencias, pontos)
-   VALUES ($1, $2, $3, $4, $5, $6, $7)
-   RETURNING id`,
-      [
-        req.body.usuarioId || null,
-        cidade,
-        pais,
-        dataIda,
-        dataVolta,
-        preferencias,
-        JSON.stringify(pontosLimitados),
-      ]
-    );
-
-    const roteiroId = roteiroInsert.rows[0].id;
-
-    // Agora salva os pontos extras com o roteiroId correto
-    const pontosExtras = pontosValidos.slice(limite);
-    console.log(pontosExtras); // Verifique os pontos extras antes de inseri-los
-
-    if (pontosExtras.length > 0) {
-      console.log(
-        `Iniciando inserção de ${pontosExtras.length} pontos extras...`
-      ); // Adicionando um log para saber quantos pontos estão sendo processados
-
-      await Promise.all(
-        pontosExtras.map(async (ponto) => {
-          try {
-            console.log(`Inserindo ponto extra: ${ponto.name}`); // Adicionando log antes de inserir
-            await pool.query(
-              `INSERT INTO pontos_extras (roteiro_id, criado_em, ponto)
-           VALUES ($1, NOW(), $2)`,
-              [
-                roteiroId,
-                JSON.stringify({
-                  ponto_id: ponto.xid,
-                  nome: ponto.name,
-                  tipo: ponto.kinds,
-                  coordenadas: {
-                    lat: ponto.point.lat,
-                    lon: ponto.point.lon,
-                  },
-                }),
-              ]
-            );
-            console.log(`Ponto extra ${ponto.name} inserido com sucesso!`);
-          } catch (error) {
-            console.error("Erro ao inserir ponto extra:", error);
+      try {
+        const climaResp = await axios.get(
+          `https://api.openweathermap.org/data/2.5/weather`,
+          {
+            params: {
+              lat: lat, // latitude da cidade
+              lon: lon, // longitude da cidade
+              appid: process.env.OPENWEATHERMAP_API_KEY,
+              units: "metric",
+            },
           }
-        })
-      );
-    } else {
-      console.log("Nenhum ponto extra encontrado para inserção.");
+        );
+
+        climaPorDia.push({
+          data: dataAtual.toISOString().split('T')[0], // YYYY-MM-DD
+          temperatura: climaResp.data.main.temp,
+          descricao: climaResp.data.weather[0].description,
+        });
+      } catch (e) {
+        console.warn(`⚠️ Falha ao obter clima para ${dataAtual.toISOString().split('T')[0]}`);
+      }
     }
 
-    // Detalhar os pontos limitados
+    // Detalhar os pontos limitados e incluir climaPorDia para cada um
     const pontosDetalhados = await Promise.all(
       pontosLimitados.map(async (ponto) => {
         let endereco = {};
@@ -236,31 +204,6 @@ app.post("/api/search", async (req, res) => {
           console.warn(`⚠️ Falha ao obter endereço para ${ponto.name}`);
         }
 
-        // Clima
-        let clima = {};
-        try {
-          const climaResp = await axios.get(
-            `https://api.openweathermap.org/data/2.5/forecast`,
-            {
-              params: {
-                lat: ponto.point.lat,
-                lon: ponto.point.lon,
-                appid: OPENWEATHERMAP_API_KEY,
-                units: "metric",
-              },
-            }
-          );
-
-          const forecast = climaResp.data.list[0];
-          clima = {
-            temperatura: forecast.main.temp,
-            descricao: forecast.weather[0].description,
-            dataHora: forecast.dt_txt,
-          };
-        } catch (e) {
-          console.warn(`⚠️ Falha ao obter clima para ${ponto.name}`);
-        }
-
         return {
           id: ponto.xid,
           nome: ponto.name,
@@ -270,12 +213,11 @@ app.post("/api/search", async (req, res) => {
             lat: ponto.point.lat,
             lon: ponto.point.lon,
           },
-          clima,
+          clima: climaPorDia, // array de clima para os dias da viagem
         };
       })
     );
 
-    // ✅ Enviando resposta com pontos + clima
     res.json(pontosDetalhados);
   } catch (error) {
     console.error(
@@ -288,6 +230,7 @@ app.post("/api/search", async (req, res) => {
     });
   }
 });
+
 
 // Rota de registro
 app.post("/api/register", async (req, res) => {
@@ -346,9 +289,18 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// Rota para adicionar ao banco
 app.post("/api/roteiros", async (req, res) => {
-  const { usuarioId, cidade, pais, dataIda, dataVolta, preferencias, pontos } =
-    req.body;
+  const {
+    usuarioId,
+    cidade,
+    pais,
+    dataIda,
+    dataVolta,
+    preferencias,
+    pontosLimitados,
+    pontosExtras,
+  } = req.body;
 
   if (
     !usuarioId ||
@@ -356,16 +308,21 @@ app.post("/api/roteiros", async (req, res) => {
     !pais ||
     !dataIda ||
     !dataVolta ||
-    !Array.isArray(pontos)
+    !Array.isArray(pontosLimitados) ||
+    !Array.isArray(pontosExtras)
   ) {
     return res.status(400).json({ error: "Dados incompletos" });
   }
 
+  const client = await pool.connect();
+
   try {
-    const resultado = await pool.query(
-      `INSERT INTO roteiros (usuario_id, cidade, pais, data_ida, data_volta, preferencias, pontos)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
+    await client.query("BEGIN");
+
+    const resultadoRoteiro = await client.query(
+      `INSERT INTO roteiros (usuario_id, cidade, pais, data_ida, data_volta, preferencias, pontos, alternativas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
       [
         usuarioId,
         cidade,
@@ -373,18 +330,65 @@ app.post("/api/roteiros", async (req, res) => {
         dataIda,
         dataVolta,
         preferencias,
-        JSON.stringify(pontos),
+        JSON.stringify(pontosLimitados),
+        JSON.stringify(pontosExtras),
       ]
     );
 
-    res.status(201).json({ sucesso: true, roteiro: resultado.rows[0] });
+    const roteiroId = resultadoRoteiro.rows[0].id;
+
+    // Insere os pontosExtras na tabela separada
+    for (const ponto of pontosExtras) {
+      let lat = null;
+      let lon = null;
+      if (
+        ponto.coordenadas &&
+        ponto.coordenadas.type === "Point" &&
+        Array.isArray(ponto.coordenadas.coordinates)
+      ) {
+        lon = ponto.coordenadas.coordinates[0];
+        lat = ponto.coordenadas.coordinates[1];
+      }
+
+      await client.query(
+        `INSERT INTO pontos_extras 
+         (roteiro_id, xid, nome, tipo, endereco, lat, lon, kinds, wikidata, coordenadas, dados_completos)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          roteiroId,
+          ponto.xid || null,
+          ponto.nome || null,
+          ponto.tipo || ponto.kinds || null,
+          ponto.endereco ? JSON.stringify(ponto.endereco) : null,
+          lat,
+          lon,
+          ponto.kinds || null,
+          ponto.wikidata || null,
+          ponto.coordenadas || null,
+          ponto,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      sucesso: true,
+      roteiroId,
+      mensagem: "Roteiro salvo com sucesso",
+    });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("Erro ao salvar roteiro:", err);
-    res
-      .status(500)
-      .json({ sucesso: false, error: "Erro no servidor ao salvar roteiro" });
+    res.status(500).json({
+      sucesso: false,
+      error: "Erro no servidor ao salvar roteiro",
+    });
+  } finally {
+    client.release();
   }
 });
+
 
 // Rota para buscar todos os roteiros ou os de um usuário específico
 app.get("/api/roteiros", async (req, res) => {
@@ -482,6 +486,105 @@ app.get("/api/cidade-imagem", async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar imagem da cidade:", error.message);
     res.status(500).json({ error: "Erro ao buscar imagem da cidade" });
+  }
+});
+
+app.get("/api/pontos-extras/:roteiro_id", async (req, res) => {
+  const { roteiro_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "SELECT * FROM pontos_extras WHERE roteiro_id = $1 ORDER BY criado_em DESC",
+      [roteiro_id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Erro ao buscar pontos extras:", error);
+    res.status(500).json({ message: "Erro ao buscar pontos extras" });
+  }
+});
+
+// Substituir um ponto no roteiro por um ponto extra
+app.post("/api/roteiros/:roteiroId/substituir-ponto", async (req, res) => {
+  const { roteiroId } = req.params;
+  const { pontoExtraId, pontoOriginalId } = req.body;
+
+  if (!pontoExtraId || !pontoOriginalId) {
+    return res
+      .status(400)
+      .json({ error: "ID do ponto extra e original são obrigatórios." });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Buscar o ponto extra
+    const pontoExtraRes = await client.query(
+      "SELECT * FROM pontos_extras WHERE id = $1 AND roteiro_id = $2",
+      [pontoExtraId, roteiroId]
+    );
+
+    if (pontoExtraRes.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Ponto extra não encontrado para este roteiro." });
+    }
+
+    const pontoExtra = pontoExtraRes.rows[0];
+
+    // Buscar o roteiro
+    const roteiroRes = await client.query(
+      "SELECT pontos FROM roteiros WHERE id = $1",
+      [roteiroId]
+    );
+
+    if (roteiroRes.rows.length === 0) {
+      return res.status(404).json({ error: "Roteiro não encontrado." });
+    }
+
+    let pontos = roteiroRes.rows[0].pontos;
+
+    // Verificar se o ponto original existe
+    const indexOriginal = pontos.findIndex((p) => p.id === pontoOriginalId);
+    if (indexOriginal === -1) {
+      return res
+        .status(404)
+        .json({ error: "Ponto original não encontrado no roteiro." });
+    }
+
+    // Criar o novo ponto com base no ponto extra
+    const novoPonto = {
+      id: pontoExtra.xid,
+      nome: pontoExtra.nome,
+      tipo: pontoExtra.tipo,
+      endereco: pontoExtra.endereco,
+      coordenadas: pontoExtra.coordenadas,
+      clima: null, // ou algum valor padrão
+    };
+
+    // Substituir o ponto
+    pontos[indexOriginal] = novoPonto;
+
+    // Atualizar o roteiro
+    await client.query("UPDATE roteiros SET pontos = $1 WHERE id = $2", [
+      JSON.stringify(pontos),
+      roteiroId,
+    ]);
+
+    await client.query("COMMIT");
+
+    res
+      .status(200)
+      .json({ message: "Ponto substituído com sucesso.", novoPonto });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Erro ao substituir ponto:", error);
+    res.status(500).json({ error: "Erro ao substituir ponto." });
+  } finally {
+    client.release();
   }
 });
 
