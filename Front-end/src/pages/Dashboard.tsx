@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios"; // certifique-se de instalar: npm install axios
 import { Link } from "react-router-dom";
+
 import {
   PlusIcon,
   MapIcon,
@@ -38,26 +39,28 @@ export function Dashboard() {
   ];
 
   // Buscar dados do backend ao carregar o componente
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     async function fetchTrips() {
+      setLoading(true); // inicia carregamento
       if (!user || !user.id) {
-        console.warn("Usuário não logado. Carregando dados fictícios.");
         setTrips(fakeTrips);
+        setLoading(false);
         return;
       }
 
       try {
         const response = await axios.get(
-          `http://localhost:3001/api/roteiros?usuarioId=${user.id}`
+          `http://localhost:3001/api/roteiros2?usuarioId=${user.id}`
         );
-        console.log(response.data.roteiros); // Verifique o que o backend está retornando
-        if (Array.isArray(response.data.roteiros)) {
-          setTrips(response.data.roteiros);
-        } else {
-          console.error("Resposta não é um array:", response.data);
+        if (Array.isArray(response.data.roteiros2)) {
+          setTrips(response.data.roteiros2);
         }
       } catch (error) {
         console.error("Erro ao buscar viagens:", error);
+      } finally {
+        setLoading(false); // finaliza carregamento
       }
     }
 
@@ -109,6 +112,7 @@ export function Dashboard() {
             <h2 className="text-lg leading-6 font-medium text-gray-900">
               Resumo
             </h2>
+
             <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               <div className="bg-blue-50 overflow-hidden shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
@@ -154,7 +158,6 @@ export function Dashboard() {
                   </div>
                 </div>
               </div>
-              {/* Mais cartões como o acima */}
             </div>
           </div>
         </div>
@@ -179,92 +182,98 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.map((trip) => (
-              <div
-                key={trip.id}
-                className="bg-white overflow-hidden shadow-xl rounded-lg"
-              >
-                {/* Exibe a imagem da cidade acima do nome da cidade */}
-                {cityImages[trip.cidade] && (
-                  <img
-                    src={cityImages[trip.cidade]}
-                    alt={`Imagem de ${trip.cidade}`}
-                    className="w-full h-48 object-cover rounded-t-lg"
-                  />
-                )}
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {trip.cidade}
-                  </h3>
-                  <div className="mt-2 flex items-center text-sm text-gray-500">
-                    <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                    <span>
-                      {new Date(trip.data_ida).toLocaleDateString("pt-BR")} -{" "}
-                      {new Date(trip.data_volta).toLocaleDateString("pt-BR")}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500">
-                    <DollarSignIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                    <span>{trip.orcamento}</span>
-                  </div>
-                  <div className="mt-4 flex justify-between">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        trip.status === "planejada"
-                          ? "bg-blue-100 text-blue-800"
-                          : trip.status === "em progresso"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
-                    >
-                      {trip.status === "planejada"
-                        ? "Planejada"
-                        : trip.status === "em progresso"
-                        ? "Em Progresso"
-                        : "Completa"}
-                    </span>
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Carregando viagens...</p>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {trips.map((trip) => (
+                <div
+                  key={trip.roteiro_id}
+                  className="bg-white overflow-hidden shadow-xl rounded-lg"
+                >
+                  {cityImages[trip.cidade] && (
+                    <img
+                      src={cityImages[trip.cidade]}
+                      alt={`Imagem de ${trip.cidade}`}
+                      className="w-full h-48 object-cover rounded-t-lg"
+                    />
+                  )}
+                  <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {trip.cidade}
+                    </h3>
+                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                      <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                      <span>
+                        {new Date(trip.data_ida).toLocaleDateString("pt-BR")} -{" "}
+                        {new Date(trip.data_volta).toLocaleDateString("pt-BR")}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                      <DollarSignIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                      <span>{trip.orcamento}</span>
+                    </div>
 
-                    <div className="flex space-x-2">
-                      <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
-                        <DownloadIcon className="h-4 w-4" />
-                      </button>
-                      <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
-                        <ShareIcon className="h-4 w-4" />
-                      </button>
+                    <div className="mt-4 flex justify-between">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          trip.status === "planejada"
+                            ? "bg-blue-100 text-blue-800"
+                            : trip.status === "em progresso"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {trip.status === "planejada"
+                          ? "Planejada"
+                          : trip.status === "em progresso"
+                          ? "Em Progresso"
+                          : "Completa"}
+                      </span>
+                      <div className="flex space-x-2">
+                        <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
+                          <DownloadIcon className="h-4 w-4" />
+                        </button>
+                        <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
+                          <ShareIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Link
+                        to={`/itinerary/${trip.roteiro_id}`} // Passa a cidade como parâmetro
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 w-full justify-center"
+                      >
+                        Ver Roteiro
+                      </Link>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <Link
-                      to={`/itinerary/${trip.id}`} // Passa a cidade como parâmetro
-                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 w-full justify-center"
-                    >
-                      Ver Roteiro
-                    </Link>
-                  </div>
+                </div>
+              ))}
+
+              <div className="bg-white overflow-hidden shadow rounded-lg border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center text-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                  <PlusIcon className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  Planejar nova viagem
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Comece a planejar sua próxima aventura
+                </p>
+                <div className="mt-6">
+                  <Link
+                    to="/plan-trip"
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Nova Viagem
+                  </Link>
                 </div>
               </div>
-            ))}
-            <div className="bg-white overflow-hidden shadow rounded-lg border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center text-center">
-              <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-                <PlusIcon className="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">
-                Planejar nova viagem
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Comece a planejar sua próxima aventura
-              </p>
-              <div className="mt-6">
-                <Link
-                  to="/plan-trip"
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  Nova Viagem
-                </Link>
-              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

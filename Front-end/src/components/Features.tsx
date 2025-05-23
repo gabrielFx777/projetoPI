@@ -9,31 +9,38 @@ export function Features() {
     name: 'Planejamento Inteligente',
     description: 'Nossa plataforma otimiza automaticamente seu roteiro considerando distâncias, horários e clima.',
     icon: CalendarIcon
-  }, {
-    name: 'Controle de Orçamento',
-    description: 'Monitore seus gastos e mantenha o controle financeiro durante toda a viagem.',
-    icon: DollarSignIcon
-  }, {
+  },
+  // , {
+  //   name: 'Controle de Orçamento',
+  //   description: 'Monitore seus gastos e mantenha o controle financeiro durante toda a viagem.',
+  //   icon: DollarSignIcon
+  // }, 
+  {
     name: 'Previsão do Tempo',
     description: 'Integração com previsão do tempo para planejar atividades adequadas para cada dia.',
     icon: CloudIcon
-  }, {
-    name: 'Recomendações Locais',
-    description: 'Sugestões de restaurantes, atrações e hotéis com base nas avaliações de outros viajantes.',
-    icon: HeartIcon
-  }, {
-    name: 'Compartilhamento',
-    description: 'Compartilhe seus roteiros com amigos e familiares facilmente por link ou redes sociais.',
-    icon: ShareIcon
-  }, {
+  }, 
+  // {
+  //   name: 'Recomendações Locais',
+  //   description: 'Sugestões de restaurantes, atrações e hotéis com base nas avaliações de outros viajantes.',
+  //   icon: HeartIcon
+  // }, 
+  // {
+  //   name: 'Compartilhamento',
+  //   description: 'Compartilhe seus roteiros com amigos e familiares facilmente por link ou redes sociais.',
+  //   icon: ShareIcon
+  // },
+   {
     name: 'Modo Offline',
     description: 'Exporte seu roteiro em PDF para acesso offline durante a viagem.',
     icon: DownloadIcon
-  }, {
-    name: 'Perfil Personalizado',
-    description: 'Salve suas preferências para receber recomendações cada vez mais personalizadas.',
-    icon: UserIcon
-  }];
+  }, 
+  // {
+  //   name: 'Perfil Personalizado',
+  //   description: 'Salve suas preferências para receber recomendações cada vez mais personalizadas.',
+  //   icon: UserIcon
+  // }
+];
   return <div id="features" className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">

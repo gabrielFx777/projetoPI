@@ -75,25 +75,8 @@ const HomePage = () => {
               transportes.
             </p>
           </div>
-          <div className="card">
-            <div className="card-icon">
-              <CalendarIcon className="icon" />
-            </div>
-            <h3 className="card-title">3. Reserve e viaje</h3>
-            <p className="card-description">
-              Faça reservas diretamente pelo site e aproveite sua viagem.
-            </p>
-          </div>
         </div>
       </div>
-
-      {/* Formulário de Preferências
-      <div className="section section-gray">
-        <h2 className="section-title">Planeje sua próxima aventura</h2>
-        
-      </div> */}
-
-      {/* Destinos Populares */}
 
       <div className="section">
         <h2 className="section-title">Destinos Populares</h2>

@@ -71,6 +71,19 @@ const PlanTrip: React.FC = () => {
     { label: "Montanhas", valor: "montanhas" },
   ];
 
+  const gastronomicas = [
+    { label: "Internacional", valor: "international" },
+    { label: "Fast-food", valor: "fast_food" },
+    { label: "Gourmet", valor: "gourmet" },
+    { label: "Vegetariano", valor: "vegetarian" },
+    { label: "Vegano", valor: "vegan" },
+    { label: "Frutos do Mar", valor: "seafood" },
+    { label: "Comida de Rua", valor: "street food" },
+    { label: "Café da Manhã", valor: "breakfast" },
+    { label: "Almoço", valor: "lunch" },
+    { label: "Jantar", valor: "dinner" },
+  ];
+
   const handleCheckbox = (estilo: string) => {
     setPreferencias((prev) =>
       prev.includes(estilo)
@@ -95,7 +108,7 @@ const PlanTrip: React.FC = () => {
         }
       }
 
-      const resposta = await fetch("http://localhost:3001/api/roteiros", {
+      const resposta = await fetch("http://localhost:3001/api/roteiros2", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -107,19 +120,23 @@ const PlanTrip: React.FC = () => {
           dataIda,
           dataVolta,
           preferencias,
-          pontosLimitados, // só a quantidade escolhida
-          pontosExtras: todosPontos, // todos os pontos da API
+          pontosLimitados,
+          pontosExtras: todosPontos,
         }),
       });
 
       const data = await resposta.json();
-      if (data.sucesso) {
-        console.log("Roteiro salvo com sucesso:", data.roteiro);
+      console.log(data); // Adicione esta linha para depuração
+      if (resposta.ok && data.sucesso && data.roteiroId) {
+        console.log("Roteiro salvo com sucesso:", data);
+        return data.roteiroId; // Aqui é roteiroId, não data.roteiro.roteiro_id
       } else {
-        console.error("Erro ao salvar roteiro:", data.error);
+        console.error("Erro ao salvar roteiro:", data.mensagem || data.error);
+        return null;
       }
     } catch (error) {
       console.error("Erro na requisição:", error);
+      return null;
     }
   };
 
@@ -152,7 +169,7 @@ const PlanTrip: React.FC = () => {
 
   const avancar = async () => {
     if (
-      etapa === 4 &&
+      etapa === 5 &&
       preferencias.length > 0 &&
       cidade &&
       pais &&
@@ -160,15 +177,34 @@ const PlanTrip: React.FC = () => {
       dataVolta
     ) {
       const dados = await handleBuscar();
-      if (dados.length > 0) {
-        const selecionados = dados.slice(0, quantidadePontos);
-        await salvarRoteiroNoServidor(dados, selecionados); // enviar todos e os limitados
+
+      if (
+        dados &&
+        Array.isArray(dados.pontosLimitados) &&
+        dados.pontosLimitados.length > 0
+      ) {
+        const selecionados = dados.pontosLimitados.slice(0, quantidadePontos);
+
+        const roteiroId = await salvarRoteiroNoServidor(
+          [
+            ...dados.pontosLimitados,
+            ...dados.pontosExtras,
+            ...(dados.restaurantes || []),
+          ],
+          selecionados
+        );
+
+        if (roteiroId) {
+          await chamarRotaClima(roteiroId); // agora envia o ID correto
+        } else {
+          alert("Erro ao salvar roteiro.");
+        }
       } else {
         alert("Nenhum ponto turístico encontrado.");
       }
     }
 
-    if (etapa < 4) setEtapa(etapa + 1);
+    if (etapa < 5) setEtapa(etapa + 1);
   };
 
   const formatarEndereco = (endereco: Endereco) => {
@@ -187,6 +223,57 @@ const PlanTrip: React.FC = () => {
     if (etapa > 1) setEtapa(etapa - 1);
   };
 
+  const chamarRotaClima = async (roteiroId: number) => {
+    console.log("Dados enviados para clima:", {
+      cidade,
+      estado: "", // Adicione se necessário
+      pais,
+      dataIda,
+      dataVolta,
+      roteiro_id: roteiroId,
+    });
+
+    try {
+      const resposta = await fetch("http://localhost:3001/api/clima", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cidade,
+          estado: "",
+          pais,
+          dataIda,
+          dataVolta,
+          roteiro_id: roteiroId,
+        }),
+      });
+
+      if (!resposta.ok) {
+        throw new Error("Erro ao chamar a rota de clima");
+      }
+
+      const clima = await resposta.json();
+      console.log("Clima recebido:", clima);
+    } catch (erro) {
+      console.error("Erro ao buscar clima:", erro);
+    }
+  };
+
+  // function atualizarDados() {
+  //   fetch("/api/dados") // sua rota do backend
+  //     .then((res) => res.json())
+  //     .then((data) => {
+  //       // Atualiza o conteúdo da página com os novos dados
+  //       document.querySelector("#conteudo").innerHTML = gerarHTML(data);
+  //     });
+  // }
+
+  // setInterval(atualizarDados, 30000); // chama a função a cada 30s
+
+  // // Você pode chamar a função uma vez ao carregar a página também
+  // atualizarDados();
+
   return (
     <>
       <div className="text-center mb-20 mt-20">
@@ -200,8 +287,9 @@ const PlanTrip: React.FC = () => {
       </div>
 
       <div className="p-8 max-w-2xl mx-auto bg-white shadow-lg rounded-xl mb-40">
-        <div className="mb-8 progresso">
+        <div className="mb-8 progresso)">
           <div className="flex items-center justify-between">
+            {/* Etapa 1 - Básico */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -222,11 +310,15 @@ const PlanTrip: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Linha 1-2 */}
             <div
               className={`flex-1 h-0.5 mx-4 ${
                 etapa >= 2 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
+
+            {/* Etapa 2 - Preferências */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -247,11 +339,15 @@ const PlanTrip: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Linha 2-3 */}
             <div
               className={`flex-1 h-0.5 mx-4 ${
                 etapa >= 3 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
+
+            {/* Etapa 3 - Atividades */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -272,11 +368,15 @@ const PlanTrip: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Linha 3-4 */}
             <div
               className={`flex-1 h-0.5 mx-4 ${
                 etapa >= 4 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
+
+            {/* Etapa 4 - Gastronomia (invertida) */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -291,6 +391,35 @@ const PlanTrip: React.FC = () => {
                 <p
                   className={`text-sm font-medium ${
                     etapa >= 4 ? "text-blue-600" : "text-gray-500"
+                  }`}
+                >
+                  Gastronomia
+                </p>
+              </div>
+            </div>
+
+            {/* Linha 4-5 */}
+            <div
+              className={`flex-1 h-0.5 mx-4 ${
+                etapa >= 5 ? "bg-blue-600" : "bg-gray-200"
+              }`}
+            ></div>
+
+            {/* Etapa 5 - Revisão (invertida) */}
+            <div className="flex items-center">
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                  etapa >= 5
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                5
+              </div>
+              <div className="ml-4">
+                <p
+                  className={`text-sm font-medium ${
+                    etapa >= 5 ? "text-blue-600" : "text-gray-500"
                   }`}
                 >
                   Revisão
@@ -400,6 +529,29 @@ const PlanTrip: React.FC = () => {
         )}
 
         {etapa === 4 && (
+          <div className="text-gray-700 mb-6">
+            <h2 className="text-lg font-semibold mb-5">
+              Preferências Gastronômicas
+            </h2>
+            <p className="mb-5">
+              Escolha os tipos de gastronomia que mais gosta:
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {gastronomicas.map(({ label, valor }) => (
+                <label key={valor} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={preferencias.includes(valor)}
+                    onChange={() => handleCheckbox(valor)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {etapa === 5 && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Quantidade de pontos turísticos que deseja visitar:
@@ -430,7 +582,7 @@ const PlanTrip: React.FC = () => {
             onClick={avancar}
             className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
           >
-            {etapa === 4 ? (carregando ? "Buscando..." : "Buscar") : "Próximo"}
+            {etapa === 5 ? (carregando ? "Buscando..." : "Buscar") : "Próximo"}
           </button>
         </div>
 

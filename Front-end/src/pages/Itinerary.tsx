@@ -11,76 +11,139 @@ import {
   ShareIcon,
   EditIcon,
 } from "lucide-react";
+
 export function Itinerary() {
   const { id } = useParams();
   const [activeDay, setActiveDay] = useState(1);
   const [tripData, setTripData] = useState(null);
-  const [loading, setLoading] = useState(true); // Estado para controle do carregamento
+  const [loading, setLoading] = useState(true);
   const [pontosExtras, setPontosExtras] = useState([]);
-  // Função para calcular a diferença de dias entre as datas
+  const [restaurantes, setRestaurantes] = useState([]);
+
   const calculateTotalDays = (startDate, endDate) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const timeDifference = end - start;
     return Math.ceil(timeDifference / (1000 * 3600 * 24)) + 1;
   };
+
   async function fetchPontosExtras() {
     try {
       const res = await fetch(`http://localhost:3001/api/pontos-extras/${id}`);
       if (!res.ok) throw new Error("Erro ao buscar pontos extras");
       const data = await res.json();
-      console.log("Pontos Extras recebidos:", data); // <---- Debug aqui
+      console.log("Pontos Extras recebidos:", data);
       setPontosExtras(data);
     } catch (error) {
       console.error(error);
     }
   }
-  useEffect(() => {
-    fetchTripData();
-    fetchPontosExtras();
-    const intervalId = setInterval(() => {
-      fetchTripData();
-      fetchPontosExtras();
-    }, 30000);
 
+  async function fetchPontos(totalDays) {
+    console.log("Buscando pontos para o roteiro com ID:", id);
+    try {
+      const resPontos = await fetch(
+        `http://localhost:3001/api/roteiros2/${id}/pontos`
+      );
+      if (!resPontos.ok) throw new Error("Erro ao buscar pontos do roteiro");
+      const data = await resPontos.json();
+      console.log("Pontos do Roteiro recebidos:", data);
+
+      const pontosComDia = data.map((ponto, index) => ({
+        ...ponto,
+        dia: Math.ceil((index + 1) / (data.length / totalDays)),
+      }));
+
+      setTripData((prevData) => ({
+        ...prevData,
+        resultados: pontosComDia,
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar pontos:", error);
+    }
+  }
+
+  async function fetchClima() {
+    try {
+      const res = await fetch(`http://localhost:3001/api/clima/${id}`);
+      if (!res.ok) throw new Error("Erro ao buscar dados do clima");
+      const data = await res.json();
+      console.log("Dados do Clima recebidos:", data);
+      setTripData((prevData) => ({
+        ...prevData,
+        clima: data, // Adiciona os dados do clima ao estado da viagem
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar clima:", error);
+    }
+  }
+
+  async function fetchRestaurantes() {
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/roteiros2/${id}/restaurantes`
+      );
+      if (!res.ok) throw new Error("Erro ao buscar restaurantes");
+      const data = await res.json();
+      console.log("🍽️ Restaurantes recebidos:", data);
+      setRestaurantes(data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const trip = await fetchTripData();
+      if (!trip) return;
+      await fetchPontosExtras();
+      await fetchRestaurantes();
+      await fetchPontos(trip.totalDays);
+      await fetchClima();
+      setLoading(false);
+    };
+
+    fetchData();
+
+    const intervalId = setInterval(fetchData, 100000);
     return () => clearInterval(intervalId);
   }, [id]);
 
-  // Função para buscar os dados do roteiro
   const fetchTripData = async () => {
+    if (!id) {
+      console.error("ID do roteiro não definido");
+      return null;
+    }
     try {
-      const response = await fetch(`http://localhost:3001/api/roteiros/${id}`);
+      const response = await fetch(`http://localhost:3001/api/roteiros2/${id}`);
       if (!response.ok) throw new Error("Roteiro não encontrado");
       const data = await response.json();
 
-      // Calcular os dias totais
       const totalDays = calculateTotalDays(data.data_ida, data.data_volta);
 
-      // Formatar os dados para exibição
-      setTripData({
-        id,
+      const formattedData = {
+        id: data.roteiro_id,
         destination: data.cidade,
         startDate: data.data_ida,
         endDate: data.data_volta,
-        budget: data.orcamento,
+        budget: "Não definido",
         totalDays: totalDays,
-        accommodation: data.acomodacao,
-        weather: data.previsao_tempo,
-        itinerary: data.roteiro,
-        resultados: data.pontos || [], // Certifique-se de que 'data.pontos' está correto
-      });
+        accommodation: "Não definido",
+        weather: "Não disponível",
+        itinerary: [],
+        resultados: [],
+      };
+
+      setTripData(formattedData);
+      return formattedData; // ← isso é novo
     } catch (error) {
       console.error(error);
       setTripData(null);
-    } finally {
-      // Após a busca dos dados, simula um delay antes de renderizar
-      setTimeout(() => {
-        setLoading(false); // Altera o estado para falso após o delay
-      }, 2000); // Atraso de 2 segundos (2000ms)
+      return null; // ← isso é novo
     }
   };
 
-  // Exibição da animação enquanto os dados estão sendo carregados
   if (loading || !tripData) {
     return (
       <div className="flex justify-center items-center h-[30vh]">
@@ -88,7 +151,7 @@ export function Itinerary() {
           src="https://lottie.host/bea39de7-5cb4-4972-85da-048547848faf/9uHUvSMkbE.lottie"
           autoplay
           loop
-          speed={1} // Diminui a velocidade da animação
+          speed={1}
         />
       </div>
     );
@@ -180,39 +243,45 @@ export function Itinerary() {
                   Previsão do Tempo
                 </h2>
                 <ul className="mt-4 space-y-3">
-                  {tripData.resultados.map((ponto) => (
-                    <li
-                      key={ponto.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
-                    >
-                      <div className="flex items-center">
-                        {/* Aqui você pode usar um ícone baseado na descrição do clima */}
-                        <span className="h-6 w-6 text-gray-400">
-                          {/* Exemplo de ícone baseado na descrição */}
-                          {ponto.clima.descricao.includes("chuva") ? (
-                            <span>🌧️</span>
-                          ) : ponto.clima.descricao.includes("sol") ? (
-                            <span>☀️</span>
-                          ) : (
-                            <span>☁️</span>
-                          )}
-                        </span>
-                        <span className="ml-3 text-sm text-gray-900">
-                          {new Date(ponto.clima.data).toLocaleDateString(
-                            "pt-BR"
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium">
-                          {ponto.clima.temperatura}°C
-                        </span>
-                        <span className="ml-2 text-gray-500">
-                          {ponto.clima.descricao}
-                        </span>
-                      </div>
+                  {tripData.clima &&
+                  Array.isArray(tripData.clima) &&
+                  tripData.clima.length > 0 ? (
+                    tripData.clima.map((clima) => (
+                      <li
+                        key={clima.data}
+                        className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
+                      >
+                        <div className="flex items-center">
+                          <span className="h-6 w-6 text-gray-400">
+                            {clima.descricao.includes("chuva") ? (
+                              <span>🌧️</span>
+                            ) : clima.descricao.includes("sol") ? (
+                              <span>☀️</span>
+                            ) : (
+                              <span>☁️</span>
+                            )}
+                          </span>
+                          <span className="ml-3 text-sm text-gray-900">
+                            {clima.descricao.startsWith("Possibilidade de ")
+                              ? clima.descricao.replace("Possibilidade de ", "")
+                              : clima.descricao}
+                          </span>
+                          <span className="ml-3 text-sm text-gray-900">
+                            {`dia ${new Date(clima.data).getDate()}`}
+                          </span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">
+                            Min: {clima.temp_min}°C, Max: {clima.temp_max}°C
+                          </span>
+                        </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">
+                      Nenhuma previsão do tempo disponível.
                     </li>
-                  ))}
+                  )}
                 </ul>
               </div>
             </div>
@@ -252,33 +321,76 @@ export function Itinerary() {
                 </nav>
               </div>
               <div className="px-4 py-5 sm:p-6">
-                {tripData?.itinerary
-                  ?.filter((item) => item.dia === activeDay)
-                  .map((item, index) => (
-                    <div key={index}>
-                      <h2>Atividade para o Dia {activeDay}</h2>
-                      <p>{item.atividade}</p>
+                {tripData.resultados
+                  ?.filter(
+                    (p) =>
+                      p.dia === activeDay &&
+                      p.ponto_tipo !== "restaurante" &&
+                      p.tipo !== "restaurante"
+                  )
+                  .map((ponto) => (
+                    <div key={ponto.id} className="mb-4">
+                      <h3 className="text-xl font-semibold">
+                        {ponto.ponto_nome || ponto.nome}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Endereço: {ponto.ponto_endereco || ponto.endereco}
+                      </p>
                     </div>
                   ))}
+
+                <ul className="space-y-4 max-h-64 overflow-y-auto">
+                  {restaurantes.map((rest) => (
+                    <li key={rest.id} className="border rounded p-4 bg-gray-50">
+                      <h3 className="text-xl font-semibold">{rest.nome}</h3>
+
+                      {(rest.serve_cafe ||
+                        rest.serve_almoco ||
+                        rest.serve_jantar) && (
+                        <p className="text-sm text-green-700 mt-1">
+                          Refeições disponíveis:{" "}
+                          {[
+                            rest.serve_cafe ? "Café da manhã" : null,
+                            rest.serve_almoco ? "Almoço" : null,
+                            rest.serve_jantar ? "Jantar" : null,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+
+                      {rest.endereco && (
+                        <p>
+                          <strong>Endereço:</strong> {rest.endereco}
+                        </p>
+                      )}
+                      {rest.rating && (
+                        <p>
+                          <strong>Avaliação:</strong> {rest.rating} ⭐
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
             <div className="mt-10">
               <ul className="space-y-4">
-                {tripData.resultados?.map((ponto) => (
-                  <li key={ponto.id} className="p-4 border rounded bg-gray-100">
-                    <h3 className="text-xl font-semibold">
-                      {ponto.nome || "Sem nome"}
-                    </h3>
-                    {/* <p>Tipo: {ponto.tipo}</p> */}
-
-                    {ponto.endereco && (
-                      <p className="text-sm text-gray-600">
-                        Endereço: {ponto.endereco.city}, {ponto.endereco.state}
-                      </p>
-                    )}
-                  </li>
-                ))}
+                {tripData.resultados
+                  ?.filter((ponto) => ponto.dia === activeDay)
+                  .map((ponto) => (
+                    <li key={ponto.id}>
+                      {/* <h3 className="text-xl font-semibold">
+                        {ponto.ponto_nome || "Sem nome"}
+                      </h3>
+                      {ponto.ponto_endereco && (
+                        <p className="text-sm text-gray-600">
+                          Endereço: {ponto.ponto_endereco}
+                        </p>
+                      )} */}
+                    </li>
+                  ))}
               </ul>
             </div>
 

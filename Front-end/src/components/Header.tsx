@@ -53,7 +53,6 @@ export function Header() {
               <Link to="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md font-medium">Início</Link>
               <Link to="/plan-trip" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md font-medium">Planejar Viagem</Link>
               <ScrollLink to="features" smooth={true} offset={-70} duration={500} className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md font-medium cursor-pointer">Recursos</ScrollLink>
-              <ScrollLink to="pricing" smooth={true} offset={-70} duration={500} className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md font-medium cursor-pointer">Premium</ScrollLink>
               <Link to="/Dashboard" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md font-medium">Visão Geral</Link>
             </nav>
           </div>
@@ -94,7 +93,7 @@ export function Header() {
             <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600" onClick={() => setIsMenuOpen(false)}>Início</Link>
             <Link to="/plan-trip" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600" onClick={() => setIsMenuOpen(false)}>Planejar Viagem</Link>
             <Link to="/#features" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600" onClick={() => setIsMenuOpen(false)}>Recursos</Link>
-            <Link to="/#pricing" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600" onClick={() => setIsMenuOpen(false)}>Premium</Link>
+            <Link to="/Dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200 px-2 space-y-1">
             {userName ? (
