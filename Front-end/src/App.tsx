@@ -13,6 +13,7 @@ import { Register } from "./pages/Register";
 import { Dashboard } from "./pages/Dashboard";
 import PlanTrip from "./pages/PlanTrip";
 import { Itinerary } from "./pages/Itinerary";
+import { EditProfile } from "./pages/EditProfile"; // <-- importe o seu novo componente
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/PrivateRoute";
 import { PublicRoute } from "./components/PublicRoute";
@@ -25,6 +26,7 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
+        {/* Rotas públicas */}
         <Route
           path="/"
           element={
@@ -51,12 +53,16 @@ function AnimatedRoutes() {
             </PageTransitionWithLottie>
           }
         />
+
+        {/* Rotas privadas */}
         <Route
           path="/dashboard"
           element={
-            <PageTransitionWithLottie>
-              <Dashboard />
-            </PageTransitionWithLottie>
+            <PrivateRoute>
+              <PageTransitionWithLottie>
+                <Dashboard />
+              </PageTransitionWithLottie>
+            </PrivateRoute>
           }
         />
         <Route
@@ -75,6 +81,18 @@ function AnimatedRoutes() {
             <PrivateRoute>
               <PageTransitionWithLottie>
                 <Itinerary />
+              </PageTransitionWithLottie>
+            </PrivateRoute>
+          }
+        />
+
+        {/* Nova rota: Editar Perfil */}
+        <Route
+          path="/edit-profile"              // ou "/profile/edit", como preferir
+          element={
+            <PrivateRoute>
+              <PageTransitionWithLottie>
+                <EditProfile />
               </PageTransitionWithLottie>
             </PrivateRoute>
           }

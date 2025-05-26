@@ -10,6 +10,7 @@ import {
   MapIcon,
   ShareIcon,
   EditIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 export function Itinerary() {
@@ -19,6 +20,11 @@ export function Itinerary() {
   const [loading, setLoading] = useState(true);
   const [pontosExtras, setPontosExtras] = useState([]);
   const [restaurantes, setRestaurantes] = useState([]);
+  const [isEditingMode, setIsEditingMode] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingPoint, setEditingPoint] = useState<any>(null);
+  const [selectedExtraId, setSelectedExtraId] = useState<string | null>(null);
+
 
   const calculateTotalDays = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -78,7 +84,7 @@ export function Itinerary() {
     }
   }
 
-  async function fetchRestaurantes() {
+  async function fetchRestaurantes(totalDays) {
     try {
       const res = await fetch(
         `http://localhost:3001/api/roteiros2/${id}/restaurantes`
@@ -86,7 +92,13 @@ export function Itinerary() {
       if (!res.ok) throw new Error("Erro ao buscar restaurantes");
       const data = await res.json();
       console.log("🍽️ Restaurantes recebidos:", data);
-      setRestaurantes(data);
+
+      const restaurantesComDia = data.map((rest, index) => ({
+        ...rest,
+        dia: Math.ceil((index + 1) / (data.length / totalDays)),
+      }));
+
+      setRestaurantes(restaurantesComDia);
     } catch (error) {
       console.error(error);
     }
@@ -98,7 +110,7 @@ export function Itinerary() {
       const trip = await fetchTripData();
       if (!trip) return;
       await fetchPontosExtras();
-      await fetchRestaurantes();
+      await fetchRestaurantes(trip.totalDays);
       await fetchPontos(trip.totalDays);
       await fetchClima();
       setLoading(false);
@@ -157,6 +169,41 @@ export function Itinerary() {
     );
   }
 
+  // --- 1) Adicione estes estados, ao lado de isEditingMode:
+
+  // --- 2) Função para confirmar a troca e atualizar backend + estado local
+  async function handleConfirmSwap() {
+    if (!selectedExtraId || !editingPoint) return;
+
+    // 2.1) Chama sua API para atualizar o ponto (ajuste a rota/pegar o body que seu back espera)
+    await fetch(
+      `http://localhost:3001/api/roteiros2/${id}/pontos/${editingPoint.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPontoExtraId: selectedExtraId }),
+      }
+    );
+
+    // 2.2) Atualiza o estado tripData.resultados, trocando o objeto
+    setTripData((prev: any) => ({
+      ...prev,
+      resultados: prev.resultados.map((p: any) =>
+        p.id === editingPoint.id
+          ? {
+              ...pontosExtras.find((e) => e.id === selectedExtraId)!,
+              dia: p.dia,
+            }
+          : p
+      ),
+    }));
+
+    // 2.3) Fecha modal e limpa seleção
+    setModalOpen(false);
+    setEditingPoint(null);
+    setSelectedExtraId(null);
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -177,9 +224,12 @@ export function Itinerary() {
               <ShareIcon className="mr-2 h-4 w-4" />
               Compartilhar
             </button>
-            <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+            <button
+              onClick={() => setIsEditingMode((prev) => !prev)}
+              className="inline-flex items-center px-4 py-2 … bg-blue-300 hover:bg-blue-700"
+            >
               <EditIcon className="mr-2 h-4 w-4" />
-              Editar
+              {isEditingMode ? "Cancelar" : "Editar"}
             </button>
           </div>
         </div>
@@ -321,77 +371,141 @@ export function Itinerary() {
                 </nav>
               </div>
               <div className="px-4 py-5 sm:p-6">
-                {tripData.resultados
-                  ?.filter(
-                    (p) =>
-                      p.dia === activeDay &&
-                      p.ponto_tipo !== "restaurante" &&
-                      p.tipo !== "restaurante"
-                  )
-                  .map((ponto) => (
-                    <div key={ponto.id} className="mb-4">
-                      <h3 className="text-xl font-semibold">
-                        {ponto.ponto_nome || ponto.nome}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Endereço: {ponto.ponto_endereco || ponto.endereco}
-                      </p>
-                    </div>
-                  ))}
+                {(() => {
+                  const pontos =
+                    tripData.resultados?.filter(
+                      (p) =>
+                        p.dia === activeDay &&
+                        p.ponto_tipo !== "restaurante" &&
+                        p.tipo !== "restaurante"
+                    ) || [];
 
-                <ul className="space-y-4 max-h-64 overflow-y-auto">
-                  {restaurantes.map((rest) => (
-                    <li key={rest.id} className="border rounded p-4 bg-gray-50">
-                      <h3 className="text-xl font-semibold">{rest.nome}</h3>
+                  const rests = restaurantes.filter((r) => r.dia === activeDay);
 
-                      {(rest.serve_cafe ||
-                        rest.serve_almoco ||
-                        rest.serve_jantar) && (
-                        <p className="text-sm text-green-700 mt-1">
-                          Refeições disponíveis:{" "}
-                          {[
-                            rest.serve_cafe ? "Café da manhã" : null,
-                            rest.serve_almoco ? "Almoço" : null,
-                            rest.serve_jantar ? "Jantar" : null,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      )}
+                  const maxLength = Math.max(pontos.length, rests.length);
+                  const intercalados = [];
 
-                      {rest.endereco && (
-                        <p>
-                          <strong>Endereço:</strong> {rest.endereco}
-                        </p>
-                      )}
-                      {rest.rating && (
-                        <p>
-                          <strong>Avaliação:</strong> {rest.rating} ⭐
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                  for (let i = 0; i < maxLength; i++) {
+                    if (pontos[i]) {
+                      intercalados.push(
+                        <div
+                          key={`ponto-${pontos[i].id}`}
+                          className="mb-4 p-4 border rounded bg-blue-200"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="text-xl font-semibold">
+                                {pontos[i].ponto_nome || pontos[i].nome}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Endereço:{" "}
+                                {pontos[i].ponto_endereco || pontos[i].endereco}
+                              </p>
+                            </div>
+                            {isEditingMode && (
+                              <div className="flex space-x-2">
+                                <EditIcon
+                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                                  onClick={() => {
+                                    setEditingPoint(pontos[i]);
+                                    setSelectedExtraId(null);
+                                    setModalOpen(true);
+                                  }}
+                                />
+                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (rests[i]) {
+                      intercalados.push(
+                        <li
+                          key={`rest-${rests[i].id}`}
+                          className="border rounded p-4 bg-yellow-100 mb-4 list-none"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="text-xl font-semibold">
+                                {rests[i].nome}
+                              </h3>
+
+                              {(rests[i].serve_cafe ||
+                                rests[i].serve_almoco ||
+                                rests[i].serve_jantar) && (
+                                <p className="text-sm text-green-700 mt-1">
+                                  Refeições disponíveis:{" "}
+                                  {[
+                                    rests[i].serve_cafe
+                                      ? "Café da manhã"
+                                      : null,
+                                    rests[i].serve_almoco ? "Almoço" : null,
+                                    rests[i].serve_jantar ? "Jantar" : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
+                              )}
+
+                              {rests[i].endereco && (
+                                <p>
+                                  <strong>Endereço:</strong> {rests[i].endereco}
+                                </p>
+                              )}
+                              {rests[i].rating && (
+                                <p>
+                                  <strong>Avaliação:</strong> {rests[i].rating}{" "}
+                                  ⭐
+                                </p>
+                              )}
+                            </div>
+                            {isEditingMode && (
+                              <div className="flex space-x-2">
+                                <EditIcon
+                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                                  onClick={() => {
+                                    setEditingPoint(pontos[i]);
+                                    setSelectedExtraId(null);
+                                    setModalOpen(true);
+                                  }}
+                                />
+                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    }
+                  }
+
+                  return intercalados;
+                })()}
               </div>
             </div>
 
-            <div className="mt-10">
+            <div>
+              {/*            
+              <div className="mt-10">
               <ul className="space-y-4">
                 {tripData.resultados
                   ?.filter((ponto) => ponto.dia === activeDay)
                   .map((ponto) => (
                     <li key={ponto.id}>
-                      {/* <h3 className="text-xl font-semibold">
+                      <h3 className="text-xl font-semibold">
                         {ponto.ponto_nome || "Sem nome"}
                       </h3>
                       {ponto.ponto_endereco && (
                         <p className="text-sm text-gray-600">
                           Endereço: {ponto.ponto_endereco}
                         </p>
-                      )} */}
+                      )}
                     </li>
                   ))}
               </ul>
+              </div>
+            */}
             </div>
 
             <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
@@ -457,6 +571,43 @@ export function Itinerary() {
           </div>
         </div>
       </div>
+
+      {modalOpen && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <h2 className="text-xl font-semibold mb-4">Trocar Ponto Turístico</h2>
+      <select
+        className="w-full border p-2 rounded"
+        value={selectedExtraId || ""}
+        onChange={(e) => setSelectedExtraId(e.target.value)}
+      >
+        <option value="">-- escolha um novo ponto --</option>
+        {pontosExtras.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.nome}
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-6 flex justify-end space-x-2">
+        <button
+          className="px-4 py-2"
+          onClick={() => setModalOpen(false)}
+        >
+          Cancelar
+        </button>
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+          onClick={handleConfirmSwap}
+          disabled={!selectedExtraId}
+        >
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

@@ -1,15 +1,19 @@
 const axios = require("axios");
 const pool = require("../config/db");
+
 const {
   buscarRestaurantes,
   verificarHorariosRestaurante,
   obterPlaceId,
 } = require("../services/googlePlacesService");
+
 const {
   buscarPontosTuristicos,
   detalharPontos,
 } = require("../services/openTripService");
+
 const { formatarEndereco } = require("../utils/formatEndereco");
+
 const { toMin, contemIntervalo } = require("../utils/horarioUtils");
 
 async function criarRoteiro(req, res) {
@@ -22,8 +26,39 @@ async function criarRoteiro(req, res) {
     preferencias,
     pontosLimitados,
     pontosExtras,
+    restaurantes = [],
   } = req.body;
 
+  function isRestaurant(item) {
+    const tipoStr = (item.tipo || "").toLowerCase();
+    const kindsStr = (item.kinds || "").toLowerCase();
+    const typesStr = Array.isArray(item.types)
+      ? item.types.map((t) => t.toLowerCase()).join(",")
+      : "";
+
+    const turismoRelevante = [
+      "cultural",
+      "architecture",
+      "historic",
+      "museums",
+      "interesting_places",
+      "natural",
+      "beaches",
+    ];
+    const tiposTuristicos = turismoRelevante.some((k) => kindsStr.includes(k));
+
+    const keywords = ["restaurant", "food", "bar", "cafe"];
+    const ehRestaurante = keywords.some(
+      (key) =>
+        tipoStr.includes(key) ||
+        kindsStr.includes(key) ||
+        typesStr.includes(key)
+    );
+
+    return ehRestaurante && !tiposTuristicos;
+  }
+
+  // validação básica
   if (
     !usuarioId ||
     !cidade ||
@@ -41,10 +76,11 @@ async function criarRoteiro(req, res) {
   try {
     await client.query("BEGIN");
 
+    // 1️⃣ INSERT no roteiros2
     const roteiroBase = await client.query(
-      `INSERT INTO roteiros2 
-        (usuario_id, cidade, pais, data_ida, data_volta, preferencias, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO roteiros2
+         (usuario_id, cidade, pais, data_ida, data_volta, preferencias, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING roteiro_id`,
       [
         usuarioId,
@@ -56,122 +92,158 @@ async function criarRoteiro(req, res) {
         "planejada",
       ]
     );
-
     const roteiroId = roteiroBase.rows[0].roteiro_id;
 
-    for (const ponto of pontosLimitados) {
+    // 2️⃣ separa pontos turísticos e restaurantes em pontosLimitados
+    const pontosTuristicos = pontosLimitados.filter((p) => !isRestaurant(p));
+    const restaurantesLimitados = pontosLimitados.filter(isRestaurant);
+
+    console.log(
+      "→ pontosTuristicos:",
+      pontosTuristicos.map((p) => p.nome)
+    );
+    console.log(
+      "→ restaurantesLimitados:",
+      restaurantesLimitados.map((r) => r.nome)
+    );
+
+    // 3️⃣ INSERT de pontos turísticos
+    for (const p of pontosTuristicos) {
       await client.query(
         `INSERT INTO roteiro_pontos
-         (roteiro_id, ponto_id, ponto_nome, ponto_tipo, ponto_endereco, ponto_lat, ponto_lon,
-          ponto_kinds, ponto_wikidata, ponto_coordenadas, ponto_rating, ponto_origem)
+           (roteiro_id, ponto_id, ponto_nome, ponto_tipo, ponto_endereco,
+            ponto_lat, ponto_lon, ponto_kinds, ponto_wikidata, ponto_coordenadas,
+            ponto_rating, ponto_origem)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           roteiroId,
-          ponto.id,
-          ponto.nome,
-          ponto.tipo,
-          ponto.endereco,
-          ponto.coordenadas?.lat || null,
-          ponto.coordenadas?.lon || null,
-          ponto.kinds || null,
-          ponto.wikidata || null,
-          JSON.stringify(ponto.coordenadas),
-          ponto.rating || null,
-          ponto.origem || (ponto.rating ? "google" : "opentripmap"),
+          p.id,
+          p.nome,
+          p.tipo,
+          p.endereco,
+          p.coordenadas?.lat || null,
+          p.coordenadas?.lon || null,
+          p.kinds || null,
+          p.wikidata || null,
+          JSON.stringify(p.coordenadas || null),
+          p.rating || null,
+          p.origem || (p.rating ? "google" : "opentripmap"),
         ]
       );
     }
 
-    const extrasRestaurantes = pontosExtras.filter(
-      (item) => (item.tipo || "").toLowerCase() === "restaurante"
-    );
-    const extrasNaoRestaurantes = pontosExtras.filter(
-      (item) => (item.tipo || "").toLowerCase() !== "restaurante"
-    );
-
+    // 4️⃣ calcula quantidade de dias
     const dias = Math.max(
       1,
       Math.ceil(
         (new Date(dataVolta).getTime() - new Date(dataIda).getTime()) /
           (1000 * 60 * 60 * 24)
-      )
+      ) + 1
     );
 
-    const principais = extrasRestaurantes.slice(0, dias * 2);
-    const extras = extrasRestaurantes.slice(dias * 2, dias * 4);
+    // 5️⃣ busca restaurantes no Google Places (até dias*4)
+    const { lat, lon } = pontosTuristicos[0]?.coordenadas || { lat: 0, lon: 0 };
+    const encontrados = await buscarRestaurantes(
+      lat,
+      lon,
+      null,
+      dias * 4,
+      3000
+    );
 
-    for (const restaurante of principais) {
+    console.log("🔍 Exemplo de restaurante retornado:", encontrados[0]);
+
+    // 6️⃣ divide principais (2 por dia) e extras (mais 2 por dia)
+    const principais = encontrados.slice(0, dias * 2);
+    const extras = encontrados.slice(dias * 2, dias * 4);
+
+    // 7️⃣ INSERT de restaurantes principais
+    for (const r of principais) {
+      console.log("⬇️ Inserindo restaurante principal:", r.nome);
       await client.query(
-        `INSERT INTO restaurantes 
-        (roteiro_id, nome, tipo, endereco, lat, lon, rating, coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `INSERT INTO restaurantes
+           (roteiro_id, nome, tipo, endereco, lat, lon, rating,
+            coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           roteiroId,
-          restaurante.nome || null,
-          restaurante.tipo || null,
-          restaurante.endereco || null,
-          restaurante.coordenadas?.lat || null,
-          restaurante.coordenadas?.lon || null,
-          restaurante.rating || null,
-          JSON.stringify(restaurante.coordenadas || null),
-          restaurante.origem || "google",
-          restaurante.serve_cafe || false,
-          restaurante.serve_almoco || false,
-          restaurante.serve_jantar || false,
+          r.nome || null,
+          Array.isArray(r.types) ? r.types.join(",") : null,
+          r.endereco || null,
+          r.coordenadas?.lat || null,
+          r.coordenadas?.lon || null,
+          r.rating || null,
+          JSON.stringify(r.coordenadas || null),
+          r.origem || "google",
+          r.serve_cafe || false,
+          r.serve_almoco || false,
+          r.serve_jantar || false,
         ]
       );
     }
 
-    for (const restaurante of extras) {
+    // 8️⃣ INSERT de restaurantes extras
+    for (const r of extras) {
+      console.log("⬇️ Inserindo restaurante extra:", r.nome);
       await client.query(
-        `INSERT INTO restaurantes_extras 
-        (roteiro_id, nome, tipo, endereco, lat, lon, rating, coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `INSERT INTO restaurantes_extras
+           (roteiro_id, nome, tipo, endereco, lat, lon, rating,
+            coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           roteiroId,
-          restaurante.nome || null,
-          restaurante.tipo || null,
-          restaurante.endereco || null,
-          restaurante.coordenadas?.lat || null,
-          restaurante.coordenadas?.lon || null,
-          restaurante.rating || null,
-          JSON.stringify(restaurante.coordenadas || null),
-          restaurante.origem || "google",
-          restaurante.serve_cafe || false,
-          restaurante.serve_almoco || false,
-          restaurante.serve_jantar || false,
+          r.nome || null,
+          Array.isArray(r.types) ? r.types.join(",") : null,
+          r.endereco || null,
+          r.coordenadas?.lat || null,
+          r.coordenadas?.lon || null,
+          r.rating || null,
+          JSON.stringify(r.coordenadas || null),
+          r.origem || "google",
+          r.serve_cafe || false,
+          r.serve_almoco || false,
+          r.serve_jantar || false,
         ]
       );
     }
 
-    for (const extra of extrasNaoRestaurantes) {
+    // 9️⃣ INSERT dos pontos_extras (não-restaurantes)
+    const extrasNaoUsados = pontosExtras
+      .filter((pe) => !pontosLimitados.some((pl) => pl.id === pe.id))
+      .filter((item) => !isRestaurant(item));
+
+    console.log("🎯 Total para pontos_extras:", extrasNaoUsados.length);
+    for (const ex of extrasNaoUsados) {
+      console.log("⬇️ Inserindo ponto extra:", ex.nome, "ID:", ex.id);
       await client.query(
         `INSERT INTO pontos_extras
-         (roteiro_id, xid, nome, tipo, endereco, lat, lon, coordenadas, origem)
+           (roteiro_id, xid, nome, tipo, endereco, lat, lon,
+            coordenadas, origem)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           roteiroId,
-          extra.id || null,
-          extra.nome || null,
-          extra.tipo || null,
-          extra.endereco || null,
-          extra.coordenadas?.lat || null,
-          extra.coordenadas?.lon || null,
-          JSON.stringify(extra.coordenadas || null),
-          extra.origem || "opentripmap",
+          ex.id || null,
+          ex.nome || null,
+          ex.tipo || null,
+          ex.endereco || null,
+          ex.coordenadas?.lat || null,
+          ex.coordenadas?.lon || null,
+          JSON.stringify(ex.coordenadas || null),
+          ex.origem || "opentripmap",
         ]
       );
     }
 
+    // 🔟 COMMIT e resposta
     await client.query("COMMIT");
     res.status(201).json({
       sucesso: true,
-      mensagem: "Roteiro e pontos salvos",
+      mensagem: "Roteiro, pontos e restaurantes salvos com sucesso",
       roteiroId,
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Erro na transação:", err);
+    console.error("❌ Erro na transação:", err);
     res.status(500).json({ sucesso: false, error: "Erro ao salvar roteiro" });
   } finally {
     client.release();
@@ -564,11 +636,33 @@ async function buscarRoteiro(req, res) {
       const categoria = mapaCategorias[pref];
       if (!categoria) return;
 
-      if (gastronomicos.includes(pref)) {
-        kindsSet.add("foods");
-      } else {
-        categoria.split(",").forEach((k) => kindsSet.add(k));
-      }
+      // Somente adiciona `categoria` se for aceito pela OpenTripMap
+      const categoriasValidasOpenTripMap = [
+        "sport",
+        "cultural",
+        "natural",
+        "foods",
+        "shops",
+        "architecture",
+        "museums",
+        "parks",
+        "adult",
+        "nightclubs",
+        "tourist_facilities",
+        "events",
+        "beaches",
+        "mountains",
+        "vegetarian",
+        "vegan",
+        "seafood",
+        "street_food",
+      ];
+
+      categoria.split(",").forEach((k) => {
+        if (categoriasValidasOpenTripMap.includes(k)) {
+          kindsSet.add(k);
+        }
+      });
     });
 
     const kinds = Array.from(kindsSet).join(",");

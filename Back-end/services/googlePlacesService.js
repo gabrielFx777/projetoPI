@@ -1,7 +1,13 @@
 const axios = require("axios");
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
-async function buscarRestaurantes(lat, lon, keyword = "restaurante", maxResults = 60, radius = 3000) {
+async function buscarRestaurantes(
+  lat,
+  lon,
+  keyword = "restaurant",
+  maxResults = 60,
+  radius = 5000
+) {
   let results = [];
   let pagetoken = null;
   const paramsBase = {
@@ -16,12 +22,22 @@ async function buscarRestaurantes(lat, lon, keyword = "restaurante", maxResults 
     const params = { ...paramsBase };
     if (pagetoken) params.pagetoken = pagetoken;
 
-    const { data } = await axios.get("https://maps.googleapis.com/maps/api/place/nearbysearch/json", { params });
+    const { data } = await axios.get(
+      "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+      { params }
+    );
     results.push(...data.results);
 
     pagetoken = data.next_page_token;
-    if (pagetoken) await new Promise((r) => setTimeout(r, 2000));
+
+    if (pagetoken) {
+      // Aumenta o tempo de espera para garantir que o token ative
+      console.log("⏳ Esperando 3 segundos para próxima página...");
+      await new Promise((r) => setTimeout(r, 3000));
+    }
   } while (pagetoken && results.length < maxResults);
+
+  console.log("🍽️ Total de restaurantes encontrados:", results.length);
 
   return results.slice(0, maxResults).map((place) => ({
     id: place.place_id,
@@ -39,13 +55,16 @@ async function buscarRestaurantes(lat, lon, keyword = "restaurante", maxResults 
 
 async function verificarHorariosRestaurante(placeId) {
   try {
-    const resp = await axios.get("https://maps.googleapis.com/maps/api/place/details/json", {
-      params: {
-        place_id: placeId,
-        fields: "opening_hours,name",
-        key: GOOGLE_PLACES_API_KEY,
-      },
-    });
+    const resp = await axios.get(
+      "https://maps.googleapis.com/maps/api/place/details/json",
+      {
+        params: {
+          place_id: placeId,
+          fields: "opening_hours,name",
+          key: GOOGLE_PLACES_API_KEY,
+        },
+      }
+    );
 
     return resp.data.result?.opening_hours?.weekday_text || [];
   } catch (error) {
@@ -57,14 +76,17 @@ async function verificarHorariosRestaurante(placeId) {
 async function obterPlaceId(nome, endereco) {
   const query = `${nome}, ${endereco}`;
   try {
-    const resp = await axios.get("https://maps.googleapis.com/maps/api/place/findplacefromtext/json", {
-      params: {
-        input: query,
-        inputtype: "textquery",
-        fields: "place_id",
-        key: GOOGLE_PLACES_API_KEY,
-      },
-    });
+    const resp = await axios.get(
+      "https://maps.googleapis.com/maps/api/place/findplacefromtext/json",
+      {
+        params: {
+          input: query,
+          inputtype: "textquery",
+          fields: "place_id",
+          key: GOOGLE_PLACES_API_KEY,
+        },
+      }
+    );
 
     return resp.data.candidates?.[0]?.place_id || null;
   } catch (error) {

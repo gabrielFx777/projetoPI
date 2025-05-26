@@ -93,26 +93,36 @@ const PlanTrip: React.FC = () => {
   };
 
   const salvarRoteiroNoServidor = async (
-    todosPontos: PontoTuristico[],
-    pontosLimitados: PontoTuristico[]
+    pontosLimitados: PontoTuristico[],
+    pontosExtras: PontoTuristico[],
+    restaurantes: any[]
   ) => {
     try {
       const user = localStorage.getItem("user");
       let usuarioId = null;
       if (user) {
         try {
-          const parsedUser = JSON.parse(user);
-          usuarioId = parsedUser.id;
+          usuarioId = JSON.parse(user).id;
         } catch {
-          console.error("Erro ao parsear o usuário.");
+          /* ignora */
         }
       }
 
+      console.log(">>> FETCH BODY:", {
+        usuarioId,
+        cidade,
+        pais,
+        dataIda,
+        dataVolta,
+        preferencias,
+        pontosLimitados: pontosLimitados.map((p) => p.id),
+        pontosExtras: pontosExtras.map((p) => p.id),
+        restaurantes: restaurantes.map((r) => r.id || r.nome),
+      });
+
       const resposta = await fetch("http://localhost:3001/api/roteiros2", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           usuarioId,
           cidade,
@@ -120,22 +130,22 @@ const PlanTrip: React.FC = () => {
           dataIda,
           dataVolta,
           preferencias,
-          pontosLimitados,
-          pontosExtras: todosPontos,
+          pontosLimitados, // principais
+          pontosExtras, // todos os extras vindos da API
+          restaurantes, // todos os restaurantes vindos da API
         }),
       });
 
       const data = await resposta.json();
-      console.log(data); // Adicione esta linha para depuração
-      if (resposta.ok && data.sucesso && data.roteiroId) {
+      if (resposta.ok && data.sucesso) {
         console.log("Roteiro salvo com sucesso:", data);
-        return data.roteiroId; // Aqui é roteiroId, não data.roteiro.roteiro_id
+        return data.roteiroId;
       } else {
-        console.error("Erro ao salvar roteiro:", data.mensagem || data.error);
+        console.error("Erro ao salvar roteiro:", data);
         return null;
       }
-    } catch (error) {
-      console.error("Erro na requisição:", error);
+    } catch (err) {
+      console.error("Erro na requisição:", err);
       return null;
     }
   };
@@ -170,40 +180,43 @@ const PlanTrip: React.FC = () => {
   const avancar = async () => {
     if (
       etapa === 5 &&
-      preferencias.length > 0 &&
       cidade &&
       pais &&
       dataIda &&
-      dataVolta
+      dataVolta &&
+      preferencias.length
     ) {
       const dados = await handleBuscar();
-
       if (
-        dados &&
         Array.isArray(dados.pontosLimitados) &&
-        dados.pontosLimitados.length > 0
+        dados.pontosLimitados.length
       ) {
         const selecionados = dados.pontosLimitados.slice(0, quantidadePontos);
 
-        const roteiroId = await salvarRoteiroNoServidor(
-          [
-            ...dados.pontosLimitados,
-            ...dados.pontosExtras,
-            ...(dados.restaurantes || []),
-          ],
-          selecionados
-        );
+        // Filtrar restaurantes conforme as refeições escolhidas
+        const wantsBreakfast = preferencias.includes("breakfast");
+        const wantsLunch = preferencias.includes("lunch");
+        const wantsDinner = preferencias.includes("dinner");
+        const restaurantesFiltrados = (dados.restaurantes || []).filter((r) => {
+          return (
+            (wantsBreakfast && r.serve_cafe) ||
+            (wantsLunch && r.serve_almoco) ||
+            (wantsDinner && r.serve_jantar)
+          );
+        });
+        console.log("Antes do filtro:", (dados.restaurantes || []).length);
+        console.log("Depois do filtro:", restaurantesFiltrados.length);
 
+        const roteiroId = await salvarRoteiroNoServidor(
+          selecionados,
+          dados.pontosExtras,
+          restaurantesFiltrados
+        );
         if (roteiroId) {
-          await chamarRotaClima(roteiroId); // agora envia o ID correto
-        } else {
-          alert("Erro ao salvar roteiro.");
+          // chamar clima ou próxima ação
         }
-      } else {
-        alert("Nenhum ponto turístico encontrado.");
       }
     }
-
     if (etapa < 5) setEtapa(etapa + 1);
   };
 
