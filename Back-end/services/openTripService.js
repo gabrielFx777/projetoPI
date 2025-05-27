@@ -1,27 +1,39 @@
+
+// services/openTripService.js
 const axios = require("axios");
 const OTP_API_KEY = process.env.OTP_API_KEY;
 const { formatarEndereco } = require("../utils/formatEndereco");
 
-async function buscarPontosTuristicos(lat, lon, kinds, rate = 3, limit = 50) {
-  try {
-    const resp = await axios.get("https://api.opentripmap.com/0.1/en/places/radius", {
-      params: {
-        radius: 10000,
-        lon,
-        lat,
-        kinds,
-        rate,
-        format: "json",
-        limit,
-        apikey: OTP_API_KEY,
-      },
-    });
+async function buscarPontosTuristicos(lat, lon, categorias, rate = 7, limitPorCategoria = 20) {
+  const resultados = [];
 
-    return resp.data.filter((p) => p.name && p.name.toLowerCase() !== "nome não disponível");
-  } catch (err) {
-    console.warn(`Erro ao buscar pontos para kind "${kinds}":`, err.message);
-    return [];
+  for (const categoria of categorias) {
+    try {
+      const resp = await axios.get("https://api.opentripmap.com/0.1/en/places/radius", {
+        params: {
+          radius: 20000,
+          lon,
+          lat,
+          kinds: categoria,
+          rate,
+          sort: "rate", // ✅ correto aqui!
+          format: "json",
+          limit: limitPorCategoria,
+          apikey: OTP_API_KEY,
+        },
+      });
+
+      const filtrados = resp.data.filter(
+        (p) => p.name && p.name.toLowerCase() !== "nome não disponível"
+      );
+
+      resultados.push(...filtrados);
+    } catch (err) {
+      console.warn(`Erro ao buscar pontos para kind "${categoria}":`, err.message);
+    }
   }
+
+  return resultados;
 }
 
 async function detalharPontos(pontos) {
@@ -41,6 +53,10 @@ async function detalharPontos(pontos) {
         tipo: ponto.kinds,
         endereco: enderecoFormatado,
         coordenadas: { lat: ponto.point.lat, lon: ponto.point.lon },
+        rating: ponto.rate || null,
+        kinds: ponto.kinds || null,
+        wikidata: ponto.wikidata || null,
+        origem: "opentripmap",
       };
     })
   );

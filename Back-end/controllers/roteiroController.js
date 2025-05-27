@@ -29,6 +29,10 @@ async function criarRoteiro(req, res) {
     restaurantes = [],
   } = req.body;
 
+  const prefereCafeDaManha = preferencias?.includes("breakfast");
+  const restaurantesPorDia = prefereCafeDaManha ? 3 : 2;
+  const extrasPorDia = 2;
+
   function isRestaurant(item) {
     const tipoStr = (item.tipo || "").toLowerCase();
     const kindsStr = (item.kinds || "").toLowerCase();
@@ -58,7 +62,6 @@ async function criarRoteiro(req, res) {
     return ehRestaurante && !tiposTuristicos;
   }
 
-  // validação básica
   if (
     !usuarioId ||
     !cidade ||
@@ -76,7 +79,6 @@ async function criarRoteiro(req, res) {
   try {
     await client.query("BEGIN");
 
-    // 1️⃣ INSERT no roteiros2
     const roteiroBase = await client.query(
       `INSERT INTO roteiros2
          (usuario_id, cidade, pais, data_ida, data_volta, preferencias, status)
@@ -94,27 +96,17 @@ async function criarRoteiro(req, res) {
     );
     const roteiroId = roteiroBase.rows[0].roteiro_id;
 
-    // 2️⃣ separa pontos turísticos e restaurantes em pontosLimitados
     const pontosTuristicos = pontosLimitados.filter((p) => !isRestaurant(p));
     const restaurantesLimitados = pontosLimitados.filter(isRestaurant);
 
-    console.log(
-      "→ pontosTuristicos:",
-      pontosTuristicos.map((p) => p.nome)
-    );
-    console.log(
-      "→ restaurantesLimitados:",
-      restaurantesLimitados.map((r) => r.nome)
-    );
-
-    // 3️⃣ INSERT de pontos turísticos
-    for (const p of pontosTuristicos) {
+    for (let i = 0; i < pontosTuristicos.length; i++) {
+      const p = pontosTuristicos[i];
       await client.query(
         `INSERT INTO roteiro_pontos
-           (roteiro_id, ponto_id, ponto_nome, ponto_tipo, ponto_endereco,
-            ponto_lat, ponto_lon, ponto_kinds, ponto_wikidata, ponto_coordenadas,
-            ponto_rating, ponto_origem)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+       (roteiro_id, ponto_id, ponto_nome, ponto_tipo, ponto_endereco,
+        ponto_lat, ponto_lon, ponto_kinds, ponto_wikidata, ponto_coordenadas,
+        ponto_rating, ponto_origem, ordem)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           roteiroId,
           p.id,
@@ -128,11 +120,11 @@ async function criarRoteiro(req, res) {
           JSON.stringify(p.coordenadas || null),
           p.rating || null,
           p.origem || (p.rating ? "google" : "opentripmap"),
+          i, // 👈 salva a posição do ponto no roteiro
         ]
       );
     }
 
-    // 4️⃣ calcula quantidade de dias
     const dias = Math.max(
       1,
       Math.ceil(
@@ -141,30 +133,66 @@ async function criarRoteiro(req, res) {
       ) + 1
     );
 
-    // 5️⃣ busca restaurantes no Google Places (até dias*4)
     const { lat, lon } = pontosTuristicos[0]?.coordenadas || { lat: 0, lon: 0 };
-    const encontrados = await buscarRestaurantes(
+    let encontrados = await buscarRestaurantes(
       lat,
       lon,
       null,
-      dias * 4,
-      3000
+      dias * (restaurantesPorDia + extrasPorDia),
+      3000,
+      preferencias
     );
 
-    console.log("🔍 Exemplo de restaurante retornado:", encontrados[0]);
+    // Forçar inclusão de padaria se necessário
+    if (prefereCafeDaManha && !encontrados.some((r) => r.serve_cafe)) {
+      const padariaBusca = await axios.get(
+        "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+        {
+          params: {
+            location: `${lat},${lon}`,
+            radius: 3000,
+            keyword: "padaria",
+            type: "restaurant",
+            key: process.env.GOOGLE_PLACES_API_KEY,
+          },
+        }
+      );
 
-    // 6️⃣ divide principais (2 por dia) e extras (mais 2 por dia)
-    const principais = encontrados.slice(0, dias * 2);
-    const extras = encontrados.slice(dias * 2, dias * 4);
+      const padaria = padariaBusca.data.results[0];
+      if (padaria) {
+        const horarios = await completarHorariosRestaurante(padaria.place_id);
+        encontrados.unshift({
+          id: padaria.place_id,
+          nome: padaria.name,
+          tipo: "restaurante",
+          endereco: padaria.vicinity || "Endereço não disponível",
+          coordenadas: {
+            lat: padaria.geometry.location.lat,
+            lon: padaria.geometry.location.lng,
+          },
+          rating: padaria.rating || null,
+          origem: "google",
+          serve_cafe: true,
+          serve_almoco: horarios.serve_almoco,
+          serve_jantar: horarios.serve_jantar,
+        });
+      }
+    }
 
-    // 7️⃣ INSERT de restaurantes principais
-    for (const r of principais) {
-      console.log("⬇️ Inserindo restaurante principal:", r.nome);
+    // AGORA sim, depois de forçar padaria:
+    const principais = encontrados.slice(0, dias * restaurantesPorDia);
+    const extras = encontrados.slice(
+      dias * restaurantesPorDia,
+      dias * (restaurantesPorDia + extrasPorDia)
+    );
+
+    for (let i = 0; i < principais.length; i++) {
+      const r = principais[i];
       await client.query(
         `INSERT INTO restaurantes
-           (roteiro_id, nome, tipo, endereco, lat, lon, rating,
-            coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+       (roteiro_id, nome, tipo, endereco, lat, lon, rating,
+        coordenadas, origem, serve_cafe, serve_almoco, serve_jantar, ordem)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           roteiroId,
           r.nome || null,
@@ -178,13 +206,12 @@ async function criarRoteiro(req, res) {
           r.serve_cafe || false,
           r.serve_almoco || false,
           r.serve_jantar || false,
+          i, // <-- posição correta no roteiro
         ]
       );
     }
 
-    // 8️⃣ INSERT de restaurantes extras
     for (const r of extras) {
-      console.log("⬇️ Inserindo restaurante extra:", r.nome);
       await client.query(
         `INSERT INTO restaurantes_extras
            (roteiro_id, nome, tipo, endereco, lat, lon, rating,
@@ -207,14 +234,11 @@ async function criarRoteiro(req, res) {
       );
     }
 
-    // 9️⃣ INSERT dos pontos_extras (não-restaurantes)
     const extrasNaoUsados = pontosExtras
       .filter((pe) => !pontosLimitados.some((pl) => pl.id === pe.id))
       .filter((item) => !isRestaurant(item));
 
-    console.log("🎯 Total para pontos_extras:", extrasNaoUsados.length);
     for (const ex of extrasNaoUsados) {
-      console.log("⬇️ Inserindo ponto extra:", ex.nome, "ID:", ex.id);
       await client.query(
         `INSERT INTO pontos_extras
            (roteiro_id, xid, nome, tipo, endereco, lat, lon,
@@ -234,7 +258,6 @@ async function criarRoteiro(req, res) {
       );
     }
 
-    // 🔟 COMMIT e resposta
     await client.query("COMMIT");
     res.status(201).json({
       sucesso: true,
@@ -305,7 +328,7 @@ async function buscarRoteiroPorId(req, res) {
 
     const roteiro = result.rows[0];
     const pontos = await pool.query(
-      "SELECT * FROM roteiro_pontos WHERE roteiro_id = $1",
+      "SELECT * FROM roteiro_pontos WHERE roteiro_id = $1 ORDER BY ordem ASC",
       [roteiro_id]
     );
 
@@ -407,9 +430,10 @@ async function listarPontosDoRoteiro(req, res) {
   const { roteiro_id } = req.params;
   try {
     const result = await pool.query(
-      "SELECT * FROM roteiro_pontos WHERE roteiro_id = $1",
+      "SELECT * FROM roteiro_pontos WHERE roteiro_id = $1 ORDER BY ordem ASC",
       [roteiro_id]
     );
+
     if (result.rows.length === 0) {
       return res
         .status(404)
@@ -468,62 +492,92 @@ async function buscarPontosExtras(req, res) {
 }
 
 async function substituirPonto(req, res) {
-  const { roteiroId } = req.params;
-  const { pontoExtraId, pontoOriginalId } = req.body;
+  const { roteiroId, pontoId } = req.params;
+  const { newPontoExtraId } = req.body;
 
-  if (!pontoExtraId || !pontoOriginalId) {
-    return res.status(400).json({ error: "IDs obrigatórios ausentes." });
+  if (!newPontoExtraId) {
+    return res
+      .status(400)
+      .json({ error: "ID do novo ponto extra é obrigatório" });
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    const pontoExtraRes = await client.query(
-      "SELECT * FROM pontos_extras WHERE id = $1 AND roteiro_id = $2",
-      [pontoExtraId, roteiroId]
+    // Busca o ponto original que será substituído
+    const originalRes = await client.query(
+      "SELECT * FROM roteiro_pontos WHERE id = $1 AND roteiro_id = $2",
+      [pontoId, roteiroId]
     );
+    if (originalRes.rows.length === 0) {
+      return res.status(404).json({ error: "Ponto original não encontrado." });
+    }
+    const pontoOriginal = originalRes.rows[0];
 
-    if (pontoExtraRes.rows.length === 0) {
+    // Busca o novo ponto extra
+    const extraRes = await client.query(
+      "SELECT * FROM pontos_extras WHERE id = $1 AND roteiro_id = $2",
+      [newPontoExtraId, roteiroId]
+    );
+    if (extraRes.rows.length === 0) {
       return res.status(404).json({ error: "Ponto extra não encontrado." });
     }
+    const pontoExtra = extraRes.rows[0];
 
-    const pontoExtra = pontoExtraRes.rows[0];
-
-    const novoPonto = {
-      ponto_id: pontoExtra.xid,
-      ponto_nome: pontoExtra.nome,
-      ponto_tipo: pontoExtra.tipo,
-      ponto_endereco: pontoExtra.endereco,
-      ponto_lat: pontoExtra.lat,
-      ponto_lon: pontoExtra.lon,
-      ponto_coordenadas: JSON.stringify(pontoExtra.coordenadas),
-      ponto_origem: pontoExtra.origem,
-    };
-
+    // Atualiza roteiro_pontos com os dados do ponto extra
     await client.query(
       `UPDATE roteiro_pontos SET 
-        ponto_id = $1, ponto_nome = $2, ponto_tipo = $3, ponto_endereco = $4, 
-        ponto_lat = $5, ponto_lon = $6, ponto_coordenadas = $7, ponto_origem = $8
-       WHERE id = $9`,
+        ponto_id = $1,
+        ponto_nome = $2,
+        ponto_tipo = $3,
+        ponto_endereco = $4,
+        ponto_lat = $5,
+        ponto_lon = $6,
+        ponto_coordenadas = $7,
+        ponto_origem = $8
+       WHERE id = $9 AND roteiro_id = $10`,
       [
-        novoPonto.ponto_id,
-        novoPonto.ponto_nome,
-        novoPonto.ponto_tipo,
-        novoPonto.ponto_endereco,
-        novoPonto.ponto_lat,
-        novoPonto.ponto_lon,
-        novoPonto.ponto_coordenadas,
-        novoPonto.ponto_origem,
-        pontoOriginalId,
+        pontoExtra.xid,
+        pontoExtra.nome,
+        pontoExtra.tipo,
+        pontoExtra.endereco,
+        pontoExtra.lat,
+        pontoExtra.lon,
+        JSON.stringify(pontoExtra.coordenadas),
+        pontoExtra.origem,
+        pontoId,
+        roteiroId,
       ]
+    );
+
+    // Move o ponto original para a tabela pontos_extras
+    await client.query(
+      `INSERT INTO pontos_extras
+        (roteiro_id, xid, nome, tipo, endereco, lat, lon, coordenadas, origem)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        roteiroId,
+        pontoOriginal.ponto_id,
+        pontoOriginal.ponto_nome,
+        pontoOriginal.ponto_tipo,
+        pontoOriginal.ponto_endereco,
+        pontoOriginal.ponto_lat,
+        pontoOriginal.ponto_lon,
+        pontoOriginal.ponto_coordenadas,
+        pontoOriginal.ponto_origem,
+      ]
+    );
+
+    // Remove o ponto extra que foi usado
+    await client.query(
+      "DELETE FROM pontos_extras WHERE id = $1 AND roteiro_id = $2",
+      [newPontoExtraId, roteiroId]
     );
 
     await client.query("COMMIT");
 
-    res
-      .status(200)
-      .json({ message: "Ponto substituído com sucesso.", novoPonto });
+    res.status(200).json({ message: "Ponto substituído com sucesso." });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Erro ao substituir ponto:", error);
@@ -673,10 +727,59 @@ async function buscarRoteiro(req, res) {
         .json({ error: "Nenhuma preferência válida enviada." });
     }
 
+    const categorias = Array.from(kindsSet); // <-- esta é a lista de categorias individuais
+
     // 3. Buscar pontos turísticos
-    const pontosBrutos = await buscarPontosTuristicos(lat, lon, kinds);
-    const pontosLimitados = await detalharPontos(pontosBrutos.slice(0, 10));
-    const pontosExtras = await detalharPontos(pontosBrutos.slice(10, 20));
+    const pontosBrutos = await buscarPontosTuristicos(
+      lat,
+      lon,
+      categorias,
+      1,
+      10
+    );
+    const pontosDetalhados = await detalharPontos(pontosBrutos);
+
+    // Agrupar por tipo principal (ex: 'beaches', 'cultural', etc.)
+    function agruparPorCategoria(pontos, categorias) {
+      const grupos = {};
+      for (const cat of categorias) grupos[cat] = [];
+
+      for (const ponto of pontos) {
+        for (const cat of categorias) {
+          if (ponto.tipo && ponto.tipo.includes(cat)) {
+            grupos[cat].push(ponto);
+            break;
+          }
+        }
+      }
+      return grupos;
+    }
+
+    // Intercalar os pontos
+    function intercalarGrupos(grupos, limiteTotal = 20) {
+      const resultado = [];
+      let adicionados = true;
+
+      while (resultado.length < limiteTotal && adicionados) {
+        adicionados = false;
+        for (const cat of Object.keys(grupos)) {
+          const item = grupos[cat].shift();
+          if (item) {
+            resultado.push(item);
+            adicionados = true;
+          }
+          if (resultado.length >= limiteTotal) break;
+        }
+      }
+
+      return resultado;
+    }
+
+    const grupos = agruparPorCategoria(pontosDetalhados, categorias);
+    const intercalados = intercalarGrupos(grupos, 20);
+
+    const pontosLimitados = intercalados.slice(0, 10);
+    const pontosExtras = intercalados.slice(10, 20);
 
     // 4. Buscar restaurantes via Google Places (baseado na cidade)
     const restaurantes = await buscarRestaurantes(lat, lon);
@@ -691,6 +794,182 @@ async function buscarRoteiro(req, res) {
   } catch (error) {
     console.error("Erro ao buscar roteiro:", error.message);
     res.status(500).json({ error: "Erro ao buscar roteiro" });
+  }
+}
+
+async function moverPontoParaExtras(req, res) {
+  const { pontoId, roteiroId } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Buscar o ponto que será removido
+    const pontoRes = await client.query(
+      "SELECT * FROM roteiro_pontos WHERE id = $1 AND roteiro_id = $2",
+      [pontoId, roteiroId]
+    );
+
+    if (pontoRes.rows.length === 0) {
+      return res.status(404).json({ error: "Ponto não encontrado." });
+    }
+
+    const ponto = pontoRes.rows[0];
+
+    // 2. Inserir esse ponto na tabela pontos_extras
+    await client.query(
+      `INSERT INTO pontos_extras
+        (roteiro_id, xid, nome, tipo, endereco, lat, lon, coordenadas, origem)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        roteiroId,
+        ponto.ponto_id,
+        ponto.ponto_nome,
+        ponto.ponto_tipo,
+        ponto.ponto_endereco,
+        ponto.ponto_lat,
+        ponto.ponto_lon,
+        ponto.ponto_coordenadas,
+        ponto.ponto_origem || "opentripmap",
+      ]
+    );
+
+    // 3. Excluir da tabela roteiro_pontos
+    await client.query(
+      "DELETE FROM roteiro_pontos WHERE id = $1 AND roteiro_id = $2",
+      [pontoId, roteiroId]
+    );
+
+    await client.query("COMMIT");
+    res.status(200).json({ message: "Ponto movido para extras com sucesso." });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Erro ao mover ponto:", error);
+    res.status(500).json({ error: "Erro ao mover ponto para extras." });
+  } finally {
+    client.release();
+  }
+}
+
+async function atualizarRestauranteDoRoteiro(req, res) {
+  const { roteiroId, restauranteId } = req.params;
+  const { novoRestauranteExtraId } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Buscar o restaurante extra que vai substituir
+    const extraRes = await client.query(
+      "SELECT * FROM restaurantes_extras WHERE id = $1 AND roteiro_id = $2",
+      [novoRestauranteExtraId, roteiroId]
+    );
+
+    if (extraRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(404)
+        .json({ error: "Restaurante extra não encontrado." });
+    }
+
+    const novo = extraRes.rows[0];
+
+    // 2. Buscar o restaurante original que será substituído
+    const originalRes = await client.query(
+      "SELECT * FROM restaurantes WHERE id = $1 AND roteiro_id = $2",
+      [restauranteId, roteiroId]
+    );
+
+    if (originalRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(404)
+        .json({ error: "Restaurante original não encontrado." });
+    }
+
+    const original = originalRes.rows[0];
+
+    // 3. Atualizar restaurante original com os dados do novo
+    await client.query(
+      `UPDATE restaurantes
+       SET nome = $1,
+           endereco = $2,
+           rating = $3,
+           serve_cafe = $4,
+           serve_almoco = $5,
+           serve_jantar = $6,
+           lat = $7,
+           lon = $8,
+           ordem = $9
+       WHERE id = $10 AND roteiro_id = $11`,
+      [
+        novo.nome,
+        novo.endereco,
+        novo.rating,
+        novo.serve_cafe,
+        novo.serve_almoco,
+        novo.serve_jantar,
+        novo.lat,
+        novo.lon,
+        original.ordem, // manter a ordem original
+        restauranteId,
+        roteiroId,
+      ]
+    );
+
+    // 4. Inserir o restaurante original na tabela de extras
+    await client.query(
+      `INSERT INTO restaurantes_extras
+       (roteiro_id, nome, tipo, endereco, lat, lon, rating,
+        coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        roteiroId,
+        original.nome,
+        original.tipo,
+        original.endereco,
+        original.lat,
+        original.lon,
+        original.rating,
+        original.coordenadas,
+        original.origem,
+        original.serve_cafe,
+        original.serve_almoco,
+        original.serve_jantar,
+      ]
+    );
+
+    // 5. Remover o restaurante novo da tabela de extras
+    await client.query(
+      "DELETE FROM restaurantes_extras WHERE id = $1 AND roteiro_id = $2",
+      [novoRestauranteExtraId, roteiroId]
+    );
+
+    await client.query("COMMIT");
+    return res
+      .status(200)
+      .json({ message: "Restaurante substituído com sucesso" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Erro ao substituir restaurante:", err);
+    return res.status(500).json({ error: "Erro ao substituir restaurante" });
+  } finally {
+    client.release();
+  }
+}
+
+async function listarRestaurantesExtras(req, res) {
+  const { roteiro_id } = req.params;
+  try {
+    const result = await pool.query(
+      "SELECT * FROM restaurantes_extras WHERE roteiro_id = $1",
+      [roteiro_id]
+    );
+    // ✅ Mesmo que não tenha nenhum, retorna array vazio com status 200
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Erro ao buscar restaurantes extras:", error);
+    res.status(500).json({ message: "Erro ao buscar restaurantes extras" });
   }
 }
 
@@ -711,4 +990,7 @@ module.exports = {
   buscarRoteiroESeusPontos: listarPontosDoRoteiro,
   buscarRoteirosComExtras: listarTodosRoteiros,
   buscarRoteiro,
+  moverPontoParaExtras,
+  atualizarRestauranteDoRoteiro,
+  listarRestaurantesExtras,
 };

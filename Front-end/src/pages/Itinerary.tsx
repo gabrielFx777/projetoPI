@@ -12,24 +12,45 @@ import {
   EditIcon,
   Trash2Icon,
 } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import localizacaoIcon from "../../imgs/localizacao.png";
 
 export function Itinerary() {
+  function detectarSeEhRestaurante(ponto: any) {
+    if (!ponto) return false;
+
+    const tipo = (ponto?.tipo || ponto?.ponto_tipo || "").toLowerCase();
+    const origem = ponto?.origem?.toLowerCase?.() || "";
+
+    return (
+      tipo.includes("restaurante") ||
+      tipo.includes("restaurant") ||
+      tipo.includes("food") ||
+      origem === "google" || // <- você disse que restaurante vem do Google
+      Object.prototype.hasOwnProperty.call(ponto, "serve_cafe") ||
+      Object.prototype.hasOwnProperty.call(ponto, "serve_almoco") ||
+      Object.prototype.hasOwnProperty.call(ponto, "serve_jantar")
+    );
+  }
+
   const { id } = useParams();
   const [activeDay, setActiveDay] = useState(1);
   const [tripData, setTripData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pontosExtras, setPontosExtras] = useState([]);
   const [restaurantes, setRestaurantes] = useState([]);
+  const [restaurantesExtras, setRestaurantesExtras] = useState([]);
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPoint, setEditingPoint] = useState<any>(null);
   const [selectedExtraId, setSelectedExtraId] = useState<string | null>(null);
 
-
-  const calculateTotalDays = (startDate, endDate) => {
+  const calculateTotalDays = (startDate: string, endDate: string) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const timeDifference = end - start;
+    const timeDifference = end.getTime() - start.getTime();
     return Math.ceil(timeDifference / (1000 * 3600 * 24)) + 1;
   };
 
@@ -45,22 +66,22 @@ export function Itinerary() {
     }
   }
 
-  async function fetchPontos(totalDays) {
+  async function fetchPontos(totalDays: number) {
     console.log("Buscando pontos para o roteiro com ID:", id);
     try {
-      const resPontos = await fetch(
+      const res = await fetch(
         `http://localhost:3001/api/roteiros2/${id}/pontos`
       );
-      if (!resPontos.ok) throw new Error("Erro ao buscar pontos do roteiro");
-      const data = await resPontos.json();
+      if (!res.ok) throw new Error("Erro ao buscar pontos do roteiro");
+      const data = await res.json();
       console.log("Pontos do Roteiro recebidos:", data);
 
-      const pontosComDia = data.map((ponto, index) => ({
+      const pontosComDia = data.map((ponto: any, index: number) => ({
         ...ponto,
         dia: Math.ceil((index + 1) / (data.length / totalDays)),
       }));
 
-      setTripData((prevData) => ({
+      setTripData((prevData: any) => ({
         ...prevData,
         resultados: pontosComDia,
       }));
@@ -75,16 +96,16 @@ export function Itinerary() {
       if (!res.ok) throw new Error("Erro ao buscar dados do clima");
       const data = await res.json();
       console.log("Dados do Clima recebidos:", data);
-      setTripData((prevData) => ({
+      setTripData((prevData: any) => ({
         ...prevData,
-        clima: data, // Adiciona os dados do clima ao estado da viagem
+        clima: data,
       }));
     } catch (error) {
       console.error("Erro ao buscar clima:", error);
     }
   }
 
-  async function fetchRestaurantes(totalDays) {
+  async function fetchRestaurantes(totalDays: number) {
     try {
       const res = await fetch(
         `http://localhost:3001/api/roteiros2/${id}/restaurantes`
@@ -93,34 +114,22 @@ export function Itinerary() {
       const data = await res.json();
       console.log("🍽️ Restaurantes recebidos:", data);
 
-      const restaurantesComDia = data.map((rest, index) => ({
-        ...rest,
-        dia: Math.ceil((index + 1) / (data.length / totalDays)),
-      }));
+      const restaurantesOrdenados = [...data].sort((a, b) => a.ordem - b.ordem);
+
+      const restaurantesComDia = restaurantesOrdenados.map(
+        (rest: any, index: number) => ({
+          ...rest,
+          dia: Math.ceil(
+            (index + 1) / (restaurantesOrdenados.length / totalDays)
+          ),
+        })
+      );
 
       setRestaurantes(restaurantesComDia);
     } catch (error) {
       console.error(error);
     }
   }
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const trip = await fetchTripData();
-      if (!trip) return;
-      await fetchPontosExtras();
-      await fetchRestaurantes(trip.totalDays);
-      await fetchPontos(trip.totalDays);
-      await fetchClima();
-      setLoading(false);
-    };
-
-    fetchData();
-
-    const intervalId = setInterval(fetchData, 100000);
-    return () => clearInterval(intervalId);
-  }, [id]);
 
   const fetchTripData = async () => {
     if (!id) {
@@ -131,7 +140,6 @@ export function Itinerary() {
       const response = await fetch(`http://localhost:3001/api/roteiros2/${id}`);
       if (!response.ok) throw new Error("Roteiro não encontrado");
       const data = await response.json();
-
       const totalDays = calculateTotalDays(data.data_ida, data.data_volta);
 
       const formattedData = {
@@ -140,7 +148,7 @@ export function Itinerary() {
         startDate: data.data_ida,
         endDate: data.data_volta,
         budget: "Não definido",
-        totalDays: totalDays,
+        totalDays,
         accommodation: "Não definido",
         weather: "Não disponível",
         itinerary: [],
@@ -148,13 +156,30 @@ export function Itinerary() {
       };
 
       setTripData(formattedData);
-      return formattedData; // ← isso é novo
+      return formattedData;
     } catch (error) {
       console.error(error);
       setTripData(null);
-      return null; // ← isso é novo
+      return null;
     }
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const trip = await fetchTripData();
+      if (!trip) return;
+      await fetchPontosExtras();
+      await fetchRestaurantes(trip.totalDays);
+      await fetchPontos(trip.totalDays);
+      await fetchClima();
+      await fetchRestaurantesExtras();
+      setLoading(false);
+    };
+    fetchData();
+    const intervalId = setInterval(fetchData, 100000);
+    return () => clearInterval(intervalId);
+  }, [id]);
 
   if (loading || !tripData) {
     return (
@@ -169,40 +194,114 @@ export function Itinerary() {
     );
   }
 
-  // --- 1) Adicione estes estados, ao lado de isEditingMode:
+  const pontosDoDia = tripData.resultados?.filter(
+    (p: any) => p.dia === activeDay && p.coordenadas
+  );
 
-  // --- 2) Função para confirmar a troca e atualizar backend + estado local
+  const restaurantesDoDia = restaurantes.filter(
+    (r: any) => r.dia === activeDay && (r.lat || r.coordenadas?.lat)
+  );
+
+  async function fetchRestaurantesExtras() {
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/restaurantes-extras/${id}`
+      );
+
+      if (!res.ok) throw new Error("Erro ao buscar restaurantes extras");
+      const data = await res.json();
+      console.log("🍽️ Restaurantes Extras recebidos:", data);
+      setRestaurantesExtras(data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  const centroMapa = pontosDoDia?.[0]?.coordenadas
+    ? [pontosDoDia[0].coordenadas.lat, pontosDoDia[0].coordenadas.lon]
+    : restaurantesDoDia?.[0]?.lat
+    ? [restaurantesDoDia[0].lat, restaurantesDoDia[0].lon]
+    : restaurantesDoDia?.[0]?.coordenadas
+    ? [
+        restaurantesDoDia[0].coordenadas.lat,
+        restaurantesDoDia[0].coordenadas.lon,
+      ]
+    : [-22.9068, -43.1729];
+
+  // --- Função para confirmar a substituição de ponto por ponto extra
   async function handleConfirmSwap() {
     if (!selectedExtraId || !editingPoint) return;
 
-    // 2.1) Chama sua API para atualizar o ponto (ajuste a rota/pegar o body que seu back espera)
-    await fetch(
-      `http://localhost:3001/api/roteiros2/${id}/pontos/${editingPoint.id}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPontoExtraId: selectedExtraId }),
+    const isRestaurante = detectarSeEhRestaurante(editingPoint);
+
+    const rota = isRestaurante
+      ? `http://localhost:3001/api/roteiros2/${id}/restaurantes/${editingPoint.id}`
+      : `http://localhost:3001/api/roteiros2/${id}/pontos/${editingPoint.id}`;
+
+    const corpo = isRestaurante
+      ? { novoRestauranteExtraId: selectedExtraId }
+      : { newPontoExtraId: selectedExtraId };
+
+    await fetch(rota, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+
+    setTripData((prev: any) => {
+      const index = isRestaurante
+        ? restaurantes.findIndex((r: any) => r.id === editingPoint.id)
+        : prev.resultados.findIndex((p: any) => p.id === editingPoint.id);
+
+      if (index === -1) return prev;
+
+      const novo = isRestaurante
+        ? restaurantesExtras.find((e) => e.id === selectedExtraId)
+        : pontosExtras.find((e) => e.id === selectedExtraId);
+
+      if (!novo) return prev;
+
+      if (isRestaurante) {
+        const novosRestaurantes = [...restaurantes];
+        novosRestaurantes[index] = {
+          ...novo,
+          id: editingPoint.id,
+          dia: editingPoint.dia,
+        };
+        setRestaurantes(novosRestaurantes);
+        return {
+          ...prev,
+          restaurantes: novosRestaurantes,
+        };
+      } else {
+        const novosResultados = [...prev.resultados];
+        novosResultados[index] = {
+          ...novo,
+          id: editingPoint.id,
+          dia: editingPoint.dia,
+          ponto_tipo: novo.tipo,
+        };
+        return { ...prev, resultados: novosResultados };
       }
-    );
+    });
+    console.log("🧪 Substituindo:", {
+      tipo: editingPoint?.tipo,
+      ponto_tipo: editingPoint?.ponto_tipo,
+      nome: editingPoint?.nome,
+      isRestaurante,
+    });
 
-    // 2.2) Atualiza o estado tripData.resultados, trocando o objeto
-    setTripData((prev: any) => ({
-      ...prev,
-      resultados: prev.resultados.map((p: any) =>
-        p.id === editingPoint.id
-          ? {
-              ...pontosExtras.find((e) => e.id === selectedExtraId)!,
-              dia: p.dia,
-            }
-          : p
-      ),
-    }));
-
-    // 2.3) Fecha modal e limpa seleção
     setModalOpen(false);
     setEditingPoint(null);
     setSelectedExtraId(null);
   }
+
+  const pontoTuristicoIcon = new L.Icon({
+    iconUrl: localizacaoIcon,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -28],
+  });
 
   return (
     <div className="bg-gray-50 min-h-screen py-8">
@@ -335,6 +434,24 @@ export function Itinerary() {
                 </ul>
               </div>
             </div>
+
+            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h2 className="text-lg font-medium text-gray-900">Legenda</h2>
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded-full bg-yellow-100"></div>
+                    <span className="text-sm text-gray-700">Restaurantes</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded-full bg-blue-200"></div>
+                    <span className="text-sm text-gray-700">
+                      Pontos Turísticos
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="col-span-2">
@@ -374,10 +491,7 @@ export function Itinerary() {
                 {(() => {
                   const pontos =
                     tripData.resultados?.filter(
-                      (p) =>
-                        p.dia === activeDay &&
-                        p.ponto_tipo !== "restaurante" &&
-                        p.tipo !== "restaurante"
+                      (p) => p.dia === activeDay && !detectarSeEhRestaurante(p)
                     ) || [];
 
                   const rests = restaurantes.filter((r) => r.dia === activeDay);
@@ -412,7 +526,42 @@ export function Itinerary() {
                                     setModalOpen(true);
                                   }}
                                 />
-                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
+                                <Trash2Icon
+                                  className="h-5 w-5 cursor-pointer text-red-600 hover:text-red-800"
+                                  onClick={async () => {
+                                    if (
+                                      !window.confirm(
+                                        "Tem certeza que deseja remover este ponto do roteiro?"
+                                      )
+                                    )
+                                      return;
+
+                                    try {
+                                      await fetch(
+                                        `http://localhost:3001/api/roteiros2/${id}/pontos/${pontos[i].id}/mover-para-extras`,
+                                        {
+                                          method: "DELETE",
+                                        }
+                                      );
+
+                                      // Atualizar os dados locais (remover ponto da tela)
+                                      setTripData((prev: any) => ({
+                                        ...prev,
+                                        resultados: prev.resultados.filter(
+                                          (p: any) => p.id !== pontos[i].id
+                                        ),
+                                      }));
+
+                                      // Recarrega os extras para incluir o novo
+                                      fetchPontosExtras();
+                                    } catch (error) {
+                                      console.error(
+                                        "Erro ao mover ponto para extras:",
+                                        error
+                                      );
+                                    }
+                                  }}
+                                />
                               </div>
                             )}
                           </div>
@@ -466,7 +615,7 @@ export function Itinerary() {
                                 <EditIcon
                                   className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
                                   onClick={() => {
-                                    setEditingPoint(pontos[i]);
+                                    setEditingPoint(rests[i]);
                                     setSelectedExtraId(null);
                                     setModalOpen(true);
                                   }}
@@ -485,129 +634,159 @@ export function Itinerary() {
               </div>
             </div>
 
-            <div>
-              {/*            
-              <div className="mt-10">
-              <ul className="space-y-4">
-                {tripData.resultados
-                  ?.filter((ponto) => ponto.dia === activeDay)
-                  .map((ponto) => (
-                    <li key={ponto.id}>
-                      <h3 className="text-xl font-semibold">
-                        {ponto.ponto_nome || "Sem nome"}
-                      </h3>
-                      {ponto.ponto_endereco && (
-                        <p className="text-sm text-gray-600">
-                          Endereço: {ponto.ponto_endereco}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-              </ul>
-              </div>
-            */}
-            </div>
-
             <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">
                   Mapa do Dia
                 </h2>
-                <div className="bg-gray-200 h-80 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <MapIcon className="mx-auto h-12 w-12 text-gray-400" />
-                    <p className="mt-2 text-sm text-gray-500">
-                      Mapa interativo seria exibido aqui com os pontos do
-                      roteiro
-                    </p>
-                  </div>
+                <div className="h-80 rounded-lg overflow-hidden z-0 relative">
+                  <MapContainer
+                    center={centroMapa}
+                    zoom={13}
+                    scrollWheelZoom={false}
+                    className="h-full w-full z-0"
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+
+                    {tripData.resultados
+                      ?.filter((p) => {
+                        const tipo = (
+                          p.ponto_tipo ||
+                          p.tipo ||
+                          ""
+                        ).toLowerCase();
+                        const isRestaurante =
+                          tipo.includes("restaurant") || tipo.includes("food");
+                        const temCoord =
+                          p.ponto_coordenadas ||
+                          p.coordenadas ||
+                          (p.ponto_lat && p.ponto_lon);
+                        return (
+                          p.dia === activeDay && temCoord && !isRestaurante
+                        );
+                      })
+                      .map((ponto) => {
+                        const lat =
+                          ponto.ponto_lat ||
+                          ponto.coordenadas?.lat ||
+                          ponto.ponto_coordenadas?.lat;
+                        const lon =
+                          ponto.ponto_lon ||
+                          ponto.coordenadas?.lon ||
+                          ponto.ponto_coordenadas?.lon;
+                        if (!lat || !lon) return null;
+
+                        return (
+                          <Marker
+                            key={ponto.id}
+                            position={[lat, lon]}
+                            icon={pontoTuristicoIcon}
+                          >
+                            <Popup>
+                              <strong>{ponto.ponto_nome || ponto.nome}</strong>
+                              <br />
+                              {ponto.ponto_endereco || ponto.endereco}
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+
+                    {restaurantes
+                      .filter(
+                        (rest) =>
+                          rest.dia === activeDay &&
+                          (rest.lat || rest.coordenadas?.lat)
+                      )
+                      .map((rest) => {
+                        const lat = rest.lat || rest.coordenadas?.lat;
+                        const lon = rest.lon || rest.coordenadas?.lon;
+                        if (!lat || !lon) return null;
+                        return (
+                          <Marker
+                            key={rest.id}
+                            position={[lat, lon]}
+                            icon={
+                              new L.Icon({
+                                iconUrl:
+                                  "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
+                                iconSize: [25, 25],
+                              })
+                            }
+                          >
+                            <Popup>
+                              <strong>{rest.nome}</strong>
+                              <br />
+                              {rest.endereco}
+                              <br />
+                              Refeições:{" "}
+                              {[
+                                rest.serve_cafe ? "Café" : null,
+                                rest.serve_almoco ? "Almoço" : null,
+                                rest.serve_jantar ? "Jantar" : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                  </MapContainer>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                Pontos Extras do Roteiro
-              </h2>
-              {pontosExtras.length === 0 ? (
-                <p className="text-gray-500">
-                  Nenhum ponto extra encontrado para este roteiro.
-                </p>
-              ) : (
-                <ul className="space-y-4 max-h-64 overflow-y-auto">
-                  {pontosExtras.map((ponto) => (
-                    <li
-                      key={ponto.id}
-                      className="border rounded p-4 bg-gray-50"
-                    >
-                      <h3 className="text-xl font-semibold">
-                        {ponto.nome || "Sem nome"}
-                      </h3>
-
-                      {ponto.endereco && (
-                        <p>
-                          <strong>Endereço:</strong> {ponto.endereco}
-                        </p>
-                      )}
-
-                      {ponto.wikidata && (
-                        <p>
-                          <strong>Wikidata:</strong>{" "}
-                          <a
-                            href={`https://www.wikidata.org/wiki/${ponto.wikidata}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-blue-600 underline"
-                          >
-                            {ponto.wikidata}
-                          </a>
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      {modalOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div className="bg-white rounded-lg p-6 w-full max-w-md">
-      <h2 className="text-xl font-semibold mb-4">Trocar Ponto Turístico</h2>
-      <select
-        className="w-full border p-2 rounded"
-        value={selectedExtraId || ""}
-        onChange={(e) => setSelectedExtraId(e.target.value)}
-      >
-        <option value="">-- escolha um novo ponto --</option>
-        {pontosExtras.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.nome}
-          </option>
-        ))}
-      </select>
+      {modalOpen && editingPoint && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4">
+              {detectarSeEhRestaurante(editingPoint)
+                ? "Trocar Restaurante"
+                : "Trocar Ponto Turístico"}
+            </h2>
 
-      <div className="mt-6 flex justify-end space-x-2">
-        <button
-          className="px-4 py-2"
-          onClick={() => setModalOpen(false)}
-        >
-          Cancelar
-        </button>
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-          onClick={handleConfirmSwap}
-          disabled={!selectedExtraId}
-        >
-          Confirmar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+            <select
+              className="w-full border p-2 rounded"
+              value={selectedExtraId || ""}
+              onChange={(e) => setSelectedExtraId(e.target.value)}
+            >
+              <option value="">
+                -- escolha um novo{" "}
+                {detectarSeEhRestaurante(editingPoint)
+                  ? "restaurante"
+                  : "ponto turístico"}{" "}
+                --
+              </option>
+              {(detectarSeEhRestaurante(editingPoint)
+                ? restaurantesExtras
+                : pontosExtras
+              ).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nome}
+                </option>
+              ))}
+            </select>
 
+            <div className="mt-6 flex justify-end space-x-2">
+              <button className="px-4 py-2" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded"
+                onClick={handleConfirmSwap}
+                disabled={!selectedExtraId}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

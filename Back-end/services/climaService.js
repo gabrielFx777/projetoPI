@@ -4,7 +4,7 @@ async function buscarClimaPorCoordenadas({ lat, lon, dias, lang = "pt" }) {
   try {
     const resp = await axios.get("https://api.weatherapi.com/v1/forecast.json", {
       params: {
-        key: process.env.OPENWEATHERMAP_API_KEY,
+        key: process.env.WEATHER_API_KEY,
         q: `${lat},${lon}`,
         days: dias,
         lang,

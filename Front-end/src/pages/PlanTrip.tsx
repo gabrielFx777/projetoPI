@@ -213,7 +213,7 @@ const PlanTrip: React.FC = () => {
           restaurantesFiltrados
         );
         if (roteiroId) {
-          // chamar clima ou próxima ação
+          await chamarRotaClima(roteiroId);
         }
       }
     }
