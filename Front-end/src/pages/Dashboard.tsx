@@ -52,7 +52,7 @@ export function Dashboard() {
 
       try {
         const response = await axios.get(
-          `http://localhost:3001/api/roteiros2?usuarioId=${user.id}`
+          `https://projetopi-1.onrender.com/api/roteiros2?usuarioId=${user.id}`
         );
         if (Array.isArray(response.data.roteiros2)) {
           setTrips(response.data.roteiros2);
@@ -71,7 +71,7 @@ export function Dashboard() {
   const fetchCityImage = async (cidade) => {
     try {
       const response = await axios.get(
-        `http://localhost:3001/api/cidade-imagem?cidade=${cidade}`
+        `https://projetopi-1.onrender.com/api/cidade-imagem?cidade=${cidade}`
       );
       setCityImages((prevState) => ({
         ...prevState,
