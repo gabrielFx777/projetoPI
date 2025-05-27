@@ -19,7 +19,7 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:3001/api/login", {
+      const response = await axios.post("https://projetopi-1.onrender.com/api/login", {
         email,
         password,
       });

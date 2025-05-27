@@ -120,7 +120,7 @@ const PlanTrip: React.FC = () => {
         restaurantes: restaurantes.map((r) => r.id || r.nome),
       });
 
-      const resposta = await fetch("http://localhost:3001/api/roteiros2", {
+      const resposta = await fetch("https://projetopi-1.onrender.com/api/roteiros2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,7 +247,7 @@ const PlanTrip: React.FC = () => {
     });
 
     try {
-      const resposta = await fetch("http://localhost:3001/api/clima", {
+      const resposta = await fetch("https://projetopi-1.onrender.com/api/clima", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

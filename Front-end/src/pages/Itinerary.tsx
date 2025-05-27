@@ -56,7 +56,7 @@ export function Itinerary() {
 
   async function fetchPontosExtras() {
     try {
-      const res = await fetch(`http://localhost:3001/api/pontos-extras/${id}`);
+      const res = await fetch(`https://projetopi-1.onrender.com/api/pontos-extras/${id}`);
       if (!res.ok) throw new Error("Erro ao buscar pontos extras");
       const data = await res.json();
       console.log("Pontos Extras recebidos:", data);
@@ -70,7 +70,7 @@ export function Itinerary() {
     console.log("Buscando pontos para o roteiro com ID:", id);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/roteiros2/${id}/pontos`
+        `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos`
       );
       if (!res.ok) throw new Error("Erro ao buscar pontos do roteiro");
       const data = await res.json();
@@ -92,7 +92,7 @@ export function Itinerary() {
 
   async function fetchClima() {
     try {
-      const res = await fetch(`http://localhost:3001/api/clima/${id}`);
+      const res = await fetch(`https://projetopi-1.onrender.com/api/clima/${id}`);
       if (!res.ok) throw new Error("Erro ao buscar dados do clima");
       const data = await res.json();
       console.log("Dados do Clima recebidos:", data);
@@ -108,7 +108,7 @@ export function Itinerary() {
   async function fetchRestaurantes(totalDays: number) {
     try {
       const res = await fetch(
-        `http://localhost:3001/api/roteiros2/${id}/restaurantes`
+        `https://projetopi-1.onrender.com/api/roteiros2/${id}/restaurantes`
       );
       if (!res.ok) throw new Error("Erro ao buscar restaurantes");
       const data = await res.json();
@@ -137,7 +137,7 @@ export function Itinerary() {
       return null;
     }
     try {
-      const response = await fetch(`http://localhost:3001/api/roteiros2/${id}`);
+      const response = await fetch(`https://projetopi-1.onrender.com/api/roteiros2/${id}`);
       if (!response.ok) throw new Error("Roteiro não encontrado");
       const data = await response.json();
       const totalDays = calculateTotalDays(data.data_ida, data.data_volta);
@@ -205,7 +205,7 @@ export function Itinerary() {
   async function fetchRestaurantesExtras() {
     try {
       const res = await fetch(
-        `http://localhost:3001/api/restaurantes-extras/${id}`
+        `https://projetopi-1.onrender.com/api/restaurantes-extras/${id}`
       );
 
       if (!res.ok) throw new Error("Erro ao buscar restaurantes extras");
@@ -235,8 +235,8 @@ export function Itinerary() {
     const isRestaurante = detectarSeEhRestaurante(editingPoint);
 
     const rota = isRestaurante
-      ? `http://localhost:3001/api/roteiros2/${id}/restaurantes/${editingPoint.id}`
-      : `http://localhost:3001/api/roteiros2/${id}/pontos/${editingPoint.id}`;
+      ? `https://projetopi-1.onrender.com/api/roteiros2/${id}/restaurantes/${editingPoint.id}`
+      : `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${editingPoint.id}`;
 
     const corpo = isRestaurante
       ? { novoRestauranteExtraId: selectedExtraId }
@@ -538,7 +538,7 @@ export function Itinerary() {
 
                                     try {
                                       await fetch(
-                                        `http://localhost:3001/api/roteiros2/${id}/pontos/${pontos[i].id}/mover-para-extras`,
+                                        `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${pontos[i].id}/mover-para-extras`,
                                         {
                                           method: "DELETE",
                                         }
