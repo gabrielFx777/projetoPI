@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
 import {
   MapPinIcon,
   CalendarIcon,
@@ -56,7 +57,9 @@ export function Itinerary() {
 
   async function fetchPontosExtras() {
     try {
-      const res = await fetch(`https://projetopi-1.onrender.com/api/pontos-extras/${id}`);
+      const res = await fetch(
+        `https://projetopi-1.onrender.com/api/pontos-extras/${id}`
+      );
       if (!res.ok) throw new Error("Erro ao buscar pontos extras");
       const data = await res.json();
       console.log("Pontos Extras recebidos:", data);
@@ -90,9 +93,16 @@ export function Itinerary() {
     }
   }
 
+  function formatarDataISO(isoString: string) {
+    const [ano, mes, dia] = isoString.split("T")[0].split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+
   async function fetchClima() {
     try {
-      const res = await fetch(`https://projetopi-1.onrender.com/api/clima/${id}`);
+      const res = await fetch(
+        `https://projetopi-1.onrender.com/api/clima/${id}`
+      );
       if (!res.ok) throw new Error("Erro ao buscar dados do clima");
       const data = await res.json();
       console.log("Dados do Clima recebidos:", data);
@@ -137,7 +147,9 @@ export function Itinerary() {
       return null;
     }
     try {
-      const response = await fetch(`https://projetopi-1.onrender.com/api/roteiros2/${id}`);
+      const response = await fetch(
+        `https://projetopi-1.onrender.com/api/roteiros2/${id}`
+      );
       if (!response.ok) throw new Error("Roteiro não encontrado");
       const data = await response.json();
       const totalDays = calculateTotalDays(data.data_ida, data.data_volta);
@@ -313,9 +325,8 @@ export function Itinerary() {
             </h1>
             <p className="mt-2 flex items-center text-sm text-gray-500">
               <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-              {new Date(tripData.startDate).toLocaleDateString("pt-BR")} -{" "}
-              {new Date(tripData.endDate).toLocaleDateString("pt-BR")}(
-              {tripData.totalDays} dias)
+              {formatarDataISO(tripData.startDate)} -{" "}
+              {formatarDataISO(tripData.endDate)} ({tripData.totalDays} dias)
             </p>
           </div>
           <div className="mt-4 md:mt-0 flex space-x-3">
@@ -354,8 +365,8 @@ export function Itinerary() {
                       <CalendarIcon className="h-6 w-6 text-gray-400" />
                     </dt>
                     <dd className="ml-3 text-sm text-gray-900">
-                      {new Date(tripData.startDate).toLocaleDateString("pt-BR")}{" "}
-                      - {new Date(tripData.endDate).toLocaleDateString("pt-BR")}
+                      {formatarDataISO(tripData.startDate)} -{" "}
+                      {formatarDataISO(tripData.endDate)}
                     </dd>
                   </div>
                   <div className="flex items-center">
@@ -364,22 +375,6 @@ export function Itinerary() {
                     </dt>
                     <dd className="ml-3 text-sm text-gray-900">
                       {tripData.totalDays} dias
-                    </dd>
-                  </div>
-                  <div className="flex items-center">
-                    <dt className="flex-shrink-0">
-                      <DollarSignIcon className="h-6 w-6 text-gray-400" />
-                    </dt>
-                    <dd className="ml-3 text-sm text-gray-900">
-                      {tripData.budget}
-                    </dd>
-                  </div>
-                  <div className="flex items-center">
-                    <dt className="flex-shrink-0">
-                      <BedIcon className="h-6 w-6 text-gray-400" />
-                    </dt>
-                    <dd className="ml-3 text-sm text-gray-900">
-                      {tripData.accommodation}
                     </dd>
                   </div>
                 </dl>
@@ -416,7 +411,7 @@ export function Itinerary() {
                               : clima.descricao}
                           </span>
                           <span className="ml-3 text-sm text-gray-900">
-                            {`dia ${new Date(clima.data).getDate()}`}
+                            {`dia ${formatarDataISO(clima.data).split("/")[0]}`}
                           </span>
                         </div>
                         <div className="text-sm">
@@ -473,13 +468,18 @@ export function Itinerary() {
                         >
                           Dia {day}
                           <span className="block text-xs text-gray-500">
-                            {new Date(
-                              new Date(tripData.startDate).getTime() +
-                                (day - 1) * 24 * 60 * 60 * 1000
-                            ).toLocaleDateString("pt-BR", {
-                              month: "short",
-                              day: "numeric",
-                            })}
+                            {(() => {
+                              const start = tripData.startDate.split("T")[0];
+                              const startDate = new Date(`${start}T00:00:00Z`);
+                              const targetDate = new Date(
+                                startDate.getTime() +
+                                  (day - 1) * 24 * 60 * 60 * 1000
+                              );
+                              return targetDate.toLocaleDateString("pt-BR", {
+                                month: "short",
+                                day: "numeric",
+                              });
+                            })()}
                           </span>
                         </button>
                       );

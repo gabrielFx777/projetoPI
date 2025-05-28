@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios"; // certifique-se de instalar: npm install axios
+import axios from "axios";
 import { Link } from "react-router-dom";
 
 import {
@@ -81,6 +81,11 @@ export function Dashboard() {
       console.error("Erro ao buscar imagem da cidade:", error);
     }
   };
+
+  function formatarDataISO(isoString: string) {
+    const [ano, mes, dia] = isoString.split("T")[0].split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
 
   // Chama a função de buscar imagem para cada cidade das viagens quando a lista de viagens mudar
   useEffect(() => {
@@ -207,8 +212,8 @@ export function Dashboard() {
                     <div className="mt-2 flex items-center text-sm text-gray-500">
                       <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
                       <span>
-                        {new Date(trip.data_ida).toLocaleDateString("pt-BR")} -{" "}
-                        {new Date(trip.data_volta).toLocaleDateString("pt-BR")}
+                        {formatarDataISO(trip.data_ida)} -{" "}
+                        {formatarDataISO(trip.data_volta)}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center text-sm text-gray-500">
