@@ -27,13 +27,15 @@ async function obterClimaPorIntervalo(req, res) {
     }
 
     const { lat, lon } = geoResp.data[0];
-    const inicio = new Date(dataIda);
-    const fim = new Date(dataVolta);
-    const diffTime = Math.abs(fim - inicio);
+    const hoje = new Date(); // Data atual no servidor
+    const dataVoltaDate = new Date(dataVolta);
+    const diffTime = Math.abs(dataVoltaDate - hoje);
     const diffDays = Math.min(
-      10,
+      3, // <= limite da API gratuita
       Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
     );
+
+    console.log("Dias solicitados à API:", diffDays);
 
     const { buscarClimaPorCoordenadas } = require("../services/climaService");
 
@@ -45,7 +47,10 @@ async function obterClimaPorIntervalo(req, res) {
     });
 
     const insercoes = forecastDays
-      .filter((d) => new Date(d.date) >= inicio && new Date(d.date) <= fim)
+      .filter((d) => {
+        const dia = d.date;
+        return dia >= dataIda && dia <= dataVolta;
+      })
       .map((d) =>
         pool
           .query(

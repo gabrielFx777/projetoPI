@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { UserIcon, MailIcon, PhoneIcon, CameraIcon, LockIcon } from "lucide-react";
+import {
+  UserIcon,
+  MailIcon,
+  PhoneIcon,
+  CameraIcon,
+  LockIcon,
+} from "lucide-react";
 import perfilImg from "../../imgs/user.png";
+import { useAuth } from "../contexts/AuthContext";
 
 export function EditProfile() {
   const [loading, setLoading] = useState(false);
@@ -13,6 +20,7 @@ export function EditProfile() {
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
+  const { setUserName } = useAuth();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -25,9 +33,12 @@ export function EditProfile() {
       }
 
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/perfil/${userId}`);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/perfil/${userId}`
+        );
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Erro ao buscar perfil");
+        if (!response.ok)
+          throw new Error(data.error || "Erro ao buscar perfil");
         setFormData(data);
       } catch (error) {
         alert("Erro ao carregar dados do perfil");
@@ -49,6 +60,7 @@ export function EditProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     const storedUser = localStorage.getItem("user");
     const userId = storedUser ? JSON.parse(storedUser).id : null;
 
@@ -60,14 +72,18 @@ export function EditProfile() {
 
     try {
       // Atualiza dados básicos
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/perfil/${userId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/perfil/${userId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        }
+      );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Erro ao atualizar perfil");
+      if (!response.ok)
+        throw new Error(data.error || "Erro ao atualizar perfil");
 
       // Atualiza senha se preenchida
       if (senhaAtual && novaSenha && confirmarSenha) {
@@ -77,17 +93,29 @@ export function EditProfile() {
           return;
         }
 
-        const senhaResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/alterar-senha/${userId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ senhaAtual, novaSenha }),
-        });
+        const senhaResponse = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/alterar-senha/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ senhaAtual, novaSenha }),
+          }
+        );
 
         const senhaData = await senhaResponse.json();
-        if (!senhaResponse.ok) throw new Error(senhaData.error || "Erro ao alterar senha");
+        if (!senhaResponse.ok)
+          throw new Error(senhaData.error || "Erro ao alterar senha");
       }
 
       alert("Perfil atualizado com sucesso!");
+
+      // ✅ Atualiza nome no localStorage e no contexto (Header)
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ nome: formData.name, id: userId })
+      );
+      setUserName(formData.name);
+
       setSenhaAtual("");
       setNovaSenha("");
       setConfirmarSenha("");
@@ -104,7 +132,9 @@ export function EditProfile() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Editar Perfil</h2>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Editar Perfil
+              </h2>
               <p className="mt-1 text-sm text-gray-600">
                 Atualize suas informações pessoais ou altere sua senha
               </p>
@@ -128,7 +158,10 @@ export function EditProfile() {
 
               {/* Nome */}
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Nome completo
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -148,7 +181,10 @@ export function EditProfile() {
 
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Email
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -168,7 +204,10 @@ export function EditProfile() {
 
               {/* Telefone */}
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="phone"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Telefone
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -188,21 +227,28 @@ export function EditProfile() {
 
               {/* Alterar senha */}
               <div className="pt-6 border-t">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Alterar Senha</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Alterar Senha
+                </h3>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Senha atual</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Senha atual
+                    </label>
                     <input
                       type="password"
                       value={senhaAtual}
                       onChange={(e) => setSenhaAtual(e.target.value)}
+                      placeholder="Digite sua senha atual"
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm px-3 py-2"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nova senha</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Nova senha
+                    </label>
                     <input
                       type="password"
                       value={novaSenha}

@@ -315,6 +315,77 @@ export function Itinerary() {
     popupAnchor: [0, -28],
   });
 
+  function renderRestaurante(
+    rest,
+    isEditingMode,
+    setEditingPoint,
+    setModalOpen,
+    setSelectedExtraId
+  ) {
+    return (
+      <li className="border rounded p-4 bg-yellow-100 list-none w-full">
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-xl font-semibold">{rest.nome}</h3>
+            {rest.endereco && <p className="text-sm">📍 {rest.endereco}</p>}
+            {rest.rating && <p className="text-sm">⭐ {rest.rating}</p>}
+          </div>
+          {isEditingMode && (
+            <div className="flex space-x-2">
+              <EditIcon
+                className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                onClick={() => {
+                  setEditingPoint(rest);
+                  setSelectedExtraId(null);
+                  setModalOpen(true);
+                }}
+              />
+              <Trash2Icon className="h-5 w-5 cursor-pointer" />
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  }
+
+  function renderPonto(
+    ponto,
+    isEditingMode,
+    setEditingPoint,
+    setModalOpen,
+    setSelectedExtraId,
+    removerPonto
+  ) {
+    return (
+      <div className="p-4 border rounded bg-blue-200 w-full">
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-xl font-semibold">
+              {ponto.ponto_nome || ponto.nome}
+            </h3>
+            {ponto.endereco && <p className="text-sm">📍 {ponto.endereco}</p>}
+          </div>
+          {isEditingMode && (
+            <div className="flex space-x-2">
+              <EditIcon
+                className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                onClick={() => {
+                  setEditingPoint(ponto);
+                  setSelectedExtraId(null);
+                  setModalOpen(true);
+                }}
+              />
+              <Trash2Icon
+                className="h-5 w-5 cursor-pointer text-red-600 hover:text-red-800"
+                onClick={() => removerPonto(ponto.id)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -406,14 +477,16 @@ export function Itinerary() {
                             )}
                           </span>
                           <span className="ml-3 text-sm text-gray-900">
-                            {clima.descricao.startsWith("Possibilidade de ")
-                              ? clima.descricao.replace("Possibilidade de ", "")
-                              : clima.descricao}
+                            {clima.descricao
+                              .replace("Possibilidade de ", "")
+                              .replace(/\birregular\b/gi, "")
+                              .trim()}
                           </span>
                           <span className="ml-3 text-sm text-gray-900">
                             {`dia ${formatarDataISO(clima.data).split("/")[0]}`}
                           </span>
                         </div>
+
                         <div className="text-sm">
                           <span className="font-medium">
                             Min: {clima.temp_min}°C, Max: {clima.temp_max}°C
@@ -487,33 +560,94 @@ export function Itinerary() {
                   )}
                 </nav>
               </div>
+
               <div className="px-4 py-5 sm:p-6">
-                {(() => {
-                  const pontos =
-                    tripData.resultados?.filter(
-                      (p) => p.dia === activeDay && !detectarSeEhRestaurante(p)
-                    ) || [];
+                <div className="px-4 py-5 sm:p-6">
+                  {(() => {
+                    const pontos =
+                      tripData.resultados?.filter(
+                        (p) =>
+                          p.dia === activeDay && !detectarSeEhRestaurante(p)
+                      ) || [];
 
-                  const rests = restaurantes.filter((r) => r.dia === activeDay);
+                    const rests = restaurantes.filter(
+                      (r) => r.dia === activeDay
+                    );
+                    const intercalados: JSX.Element[] = [];
+                    const refeicoes = [
+                      "☕ Café da manhã",
+                      "🍽️ Almoço",
+                      "🌙 Jantar",
+                    ];
 
-                  const maxLength = Math.max(pontos.length, rests.length);
-                  const intercalados = [];
-
-                  for (let i = 0; i < maxLength; i++) {
-                    if (pontos[i]) {
-                      intercalados.push(
-                        <div
-                          key={`ponto-${pontos[i].id}`}
-                          className="mb-4 p-4 border rounded bg-blue-200"
-                        >
+                    const renderRestaurante = (rest, i) => (
+                      <React.Fragment key={`rest-${rest.id}`}>
+                        <p className="text-sm text-gray-700 mb-1 ml-1">
+                          {refeicoes[i]}
+                        </p>
+                        <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
                           <div className="flex justify-between items-start">
                             <div>
                               <h3 className="text-xl font-semibold">
-                                {pontos[i].ponto_nome || pontos[i].nome}
+                                {rest.nome}
+                              </h3>
+                              {(rest.serve_cafe ||
+                                rest.serve_almoco ||
+                                rest.serve_jantar) && (
+                                <p className="text-sm text-green-700 mt-1">
+                                  Refeições disponíveis:{" "}
+                                  {[
+                                    rest.serve_cafe ? "Café da manhã" : null,
+                                    rest.serve_almoco ? "Almoço" : null,
+                                    rest.serve_jantar ? "Jantar" : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
+                              )}
+                              {rest.endereco && (
+                                <p>
+                                  <strong>Endereço:</strong> {rest.endereco}
+                                </p>
+                              )}
+                              {rest.rating && (
+                                <p>
+                                  <strong>Avaliação:</strong> {rest.rating} ⭐
+                                </p>
+                              )}
+                            </div>
+                            {isEditingMode && (
+                              <div className="flex space-x-2">
+                                <EditIcon
+                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                                  onClick={() => {
+                                    setEditingPoint(rest);
+                                    setSelectedExtraId(null);
+                                    setModalOpen(true);
+                                  }}
+                                />
+                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      </React.Fragment>
+                    );
+
+                    const renderPonto = (ponto) => (
+                      <React.Fragment key={`ponto-${ponto.id}`}>
+                        <p className="text-sm text-gray-700 mb-1 ml-1">
+                          🗺️ Pontos turísticos
+                        </p>
+                        <div className="mb-4 p-4 border rounded bg-blue-200">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="text-xl font-semibold">
+                                {ponto.ponto_nome || ponto.nome}
                               </h3>
                               <p className="text-sm text-gray-600">
                                 Endereço:{" "}
-                                {pontos[i].ponto_endereco || pontos[i].endereco}
+                                {ponto.ponto_endereco || ponto.endereco}
                               </p>
                             </div>
                             {isEditingMode && (
@@ -521,7 +655,7 @@ export function Itinerary() {
                                 <EditIcon
                                   className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
                                   onClick={() => {
-                                    setEditingPoint(pontos[i]);
+                                    setEditingPoint(ponto);
                                     setSelectedExtraId(null);
                                     setModalOpen(true);
                                   }}
@@ -538,21 +672,19 @@ export function Itinerary() {
 
                                     try {
                                       await fetch(
-                                        `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${pontos[i].id}/mover-para-extras`,
+                                        `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${ponto.id}/mover-para-extras`,
                                         {
                                           method: "DELETE",
                                         }
                                       );
 
-                                      // Atualizar os dados locais (remover ponto da tela)
                                       setTripData((prev: any) => ({
                                         ...prev,
                                         resultados: prev.resultados.filter(
-                                          (p: any) => p.id !== pontos[i].id
+                                          (x: any) => x.id !== ponto.id
                                         ),
                                       }));
 
-                                      // Recarrega os extras para incluir o novo
                                       fetchPontosExtras();
                                     } catch (error) {
                                       console.error(
@@ -566,71 +698,29 @@ export function Itinerary() {
                             )}
                           </div>
                         </div>
-                      );
+                      </React.Fragment>
+                    );
+
+                    if (rests.length === 3) {
+                      const maxLength = Math.max(rests.length, pontos.length);
+                      for (let i = 0; i < maxLength; i++) {
+                        if (rests[i])
+                          intercalados.push(renderRestaurante(rests[i], i));
+                        if (pontos[i])
+                          intercalados.push(renderPonto(pontos[i]));
+                      }
+                    } else {
+                      if (pontos[0]) intercalados.push(renderPonto(pontos[0]));
+                      if (rests[0])
+                        intercalados.push(renderRestaurante(rests[0], 1));
+                      if (pontos[1]) intercalados.push(renderPonto(pontos[1]));
+                      if (rests[1])
+                        intercalados.push(renderRestaurante(rests[1], 2));
                     }
 
-                    if (rests[i]) {
-                      intercalados.push(
-                        <li
-                          key={`rest-${rests[i].id}`}
-                          className="border rounded p-4 bg-yellow-100 mb-4 list-none"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="text-xl font-semibold">
-                                {rests[i].nome}
-                              </h3>
-
-                              {(rests[i].serve_cafe ||
-                                rests[i].serve_almoco ||
-                                rests[i].serve_jantar) && (
-                                <p className="text-sm text-green-700 mt-1">
-                                  Refeições disponíveis:{" "}
-                                  {[
-                                    rests[i].serve_cafe
-                                      ? "Café da manhã"
-                                      : null,
-                                    rests[i].serve_almoco ? "Almoço" : null,
-                                    rests[i].serve_jantar ? "Jantar" : null,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(", ")}
-                                </p>
-                              )}
-
-                              {rests[i].endereco && (
-                                <p>
-                                  <strong>Endereço:</strong> {rests[i].endereco}
-                                </p>
-                              )}
-                              {rests[i].rating && (
-                                <p>
-                                  <strong>Avaliação:</strong> {rests[i].rating}{" "}
-                                  ⭐
-                                </p>
-                              )}
-                            </div>
-                            {isEditingMode && (
-                              <div className="flex space-x-2">
-                                <EditIcon
-                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
-                                  onClick={() => {
-                                    setEditingPoint(rests[i]);
-                                    setSelectedExtraId(null);
-                                    setModalOpen(true);
-                                  }}
-                                />
-                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
-                              </div>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    }
-                  }
-
-                  return intercalados;
-                })()}
+                    return intercalados;
+                  })()}
+                </div>
               </div>
             </div>
 

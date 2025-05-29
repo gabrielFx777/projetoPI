@@ -118,12 +118,6 @@
 //   );
 // }
 
-
-
-
-
-
-
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
@@ -185,13 +179,12 @@ function AnimatedRoutes() {
         <Route
           path="/dashboard"
           element={
-            <PrivateRoute>
-              <PageTransitionWithLottie>
-                <Dashboard />
-              </PageTransitionWithLottie>
-            </PrivateRoute>
+            <PageTransitionWithLottie>
+              <Dashboard />
+            </PageTransitionWithLottie>
           }
         />
+
         <Route
           path="/plan-trip"
           element={

@@ -55,7 +55,6 @@ const PlanTrip: React.FC = () => {
     { label: "Aventura", valor: "aventura" },
     { label: "Cultural", valor: "cultural" },
     { label: "Relaxamento", valor: "relaxamento" },
-    { label: "Gastronômico", valor: "gastronomico" },
     { label: "Compras", valor: "compras" },
     { label: "Romântico", valor: "romantico" },
   ];
@@ -63,9 +62,6 @@ const PlanTrip: React.FC = () => {
   const opcoesInteresses = [
     { label: "Museus", valor: "museus" },
     { label: "Parques", valor: "parques" },
-    { label: "Vida Noturna", valor: "vidaNoturna" },
-    { label: "Tours Guiados", valor: "toursGuiados" },
-    { label: "Shows", valor: "shows" },
     { label: "Natureza", valor: "natureza" },
     { label: "Praias", valor: "praias" },
     { label: "Montanhas", valor: "montanhas" },
@@ -83,6 +79,10 @@ const PlanTrip: React.FC = () => {
     { label: "Almoço", valor: "lunch" },
     { label: "Jantar", valor: "dinner" },
   ];
+
+  const [modalStatus, setModalStatus] = useState<
+    null | "gerando" | "concluido"
+  >(null);
 
   const handleCheckbox = (estilo: string) => {
     setPreferencias((prev) =>
@@ -120,21 +120,24 @@ const PlanTrip: React.FC = () => {
         restaurantes: restaurantes.map((r) => r.id || r.nome),
       });
 
-      const resposta = await fetch("https://projetopi-1.onrender.com/api/roteiros2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuarioId,
-          cidade,
-          pais,
-          dataIda,
-          dataVolta,
-          preferencias,
-          pontosLimitados, // principais
-          pontosExtras, // todos os extras vindos da API
-          restaurantes, // todos os restaurantes vindos da API
-        }),
-      });
+      const resposta = await fetch(
+        "https://projetopi-1.onrender.com/api/roteiros2",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuarioId,
+            cidade,
+            pais,
+            dataIda,
+            dataVolta,
+            preferencias,
+            pontosLimitados, // principais
+            pontosExtras, // todos os extras vindos da API
+            restaurantes, // todos os restaurantes vindos da API
+          }),
+        }
+      );
 
       const data = await resposta.json();
       if (resposta.ok && data.sucesso) {
@@ -178,6 +181,47 @@ const PlanTrip: React.FC = () => {
   };
 
   const avancar = async () => {
+    // Etapa 1 obrigatória
+    if (etapa === 1) {
+      if (!cidade.trim() || !pais.trim() || !dataIda || !dataVolta) {
+        alert("Por favor, preencha todos os campos obrigatórios.");
+        return;
+      }
+    }
+
+    // Etapa 3: exige seleção na etapa 2 ou 3
+    if (etapa === 3) {
+      const estilosSelecionados = preferencias.filter((p) =>
+        opcoesEstilo.map((o) => o.valor).includes(p)
+      );
+      const interessesSelecionados = preferencias.filter((p) =>
+        opcoesInteresses.map((o) => o.valor).includes(p)
+      );
+
+      if (
+        estilosSelecionados.length === 0 &&
+        interessesSelecionados.length === 0
+      ) {
+        alert(
+          "Selecione pelo menos um estilo de viagem (Etapa 2) ou atividade (Etapa 3)."
+        );
+        return;
+      }
+    }
+
+    // Etapa 4: exige ao menos uma preferência gastronômica
+    if (etapa === 4) {
+      const gastronomiaSelecionada = preferencias.some((p) =>
+        gastronomicas.map((g) => g.valor).includes(p)
+      );
+
+      if (!gastronomiaSelecionada) {
+        alert("Selecione pelo menos uma preferência.");
+        return;
+      }
+    }
+
+    // Etapa 5: busca e salva roteiro
     if (
       etapa === 5 &&
       cidade &&
@@ -186,6 +230,7 @@ const PlanTrip: React.FC = () => {
       dataVolta &&
       preferencias.length
     ) {
+      setModalStatus("gerando");
       const dados = await handleBuscar();
       if (
         Array.isArray(dados.pontosLimitados) &&
@@ -193,10 +238,10 @@ const PlanTrip: React.FC = () => {
       ) {
         const selecionados = dados.pontosLimitados.slice(0, quantidadePontos);
 
-        // Filtrar restaurantes conforme as refeições escolhidas
         const wantsBreakfast = preferencias.includes("breakfast");
         const wantsLunch = preferencias.includes("lunch");
         const wantsDinner = preferencias.includes("dinner");
+
         const restaurantesFiltrados = (dados.restaurantes || []).filter((r) => {
           return (
             (wantsBreakfast && r.serve_cafe) ||
@@ -204,19 +249,26 @@ const PlanTrip: React.FC = () => {
             (wantsDinner && r.serve_jantar)
           );
         });
-        console.log("Antes do filtro:", (dados.restaurantes || []).length);
-        console.log("Depois do filtro:", restaurantesFiltrados.length);
 
         const roteiroId = await salvarRoteiroNoServidor(
           selecionados,
           dados.pontosExtras,
           restaurantesFiltrados
         );
+
         if (roteiroId) {
           await chamarRotaClima(roteiroId);
+          setModalStatus("concluido"); // muda o conteúdo da modal
+        } else {
+          setModalStatus(null); // erro ou falha, remove a modal
+          alert("Não foi possível salvar o roteiro.");
         }
+      } else {
+        setModalStatus(null);
+        alert("Nenhum ponto turístico encontrado.");
       }
     }
+
     if (etapa < 5) setEtapa(etapa + 1);
   };
 
@@ -247,20 +299,23 @@ const PlanTrip: React.FC = () => {
     });
 
     try {
-      const resposta = await fetch("https://projetopi-1.onrender.com/api/clima", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          cidade,
-          estado: "",
-          pais,
-          dataIda,
-          dataVolta,
-          roteiro_id: roteiroId,
-        }),
-      });
+      const resposta = await fetch(
+        "https://projetopi-1.onrender.com/api/clima",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cidade,
+            estado: "",
+            pais,
+            dataIda,
+            dataVolta,
+            roteiro_id: roteiroId,
+          }),
+        }
+      );
 
       if (!resposta.ok) {
         throw new Error("Erro ao chamar a rota de clima");
@@ -299,10 +354,10 @@ const PlanTrip: React.FC = () => {
         </p>
       </div>
 
-      <div className="p-8 max-w-2xl mx-auto bg-white shadow-lg rounded-xl mb-40">
-        <div className="mb-8 progresso)">
-          <div className="flex items-center justify-between">
-            {/* Etapa 1 - Básico */}
+      <div className="w-full p-4 sm:p-8 max-w-4xl mx-auto bg-white shadow-lg rounded-xl mb-40">
+        <div className="mb-8 flex justify-center">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-center gap-2 w-full">
+            {/* Etapa 1 */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -326,12 +381,12 @@ const PlanTrip: React.FC = () => {
 
             {/* Linha 1-2 */}
             <div
-              className={`flex-1 h-0.5 mx-4 ${
+              className={`w-full sm:flex-1 h-0.5 sm:h-0.5 sm:w-auto mx-4 ${
                 etapa >= 2 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
 
-            {/* Etapa 2 - Preferências */}
+            {/* Etapa 2 */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -355,12 +410,12 @@ const PlanTrip: React.FC = () => {
 
             {/* Linha 2-3 */}
             <div
-              className={`flex-1 h-0.5 mx-4 ${
+              className={`w-full sm:flex-1 h-0.5 sm:h-0.5 sm:w-auto mx-4 ${
                 etapa >= 3 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
 
-            {/* Etapa 3 - Atividades */}
+            {/* Etapa 3 */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -384,12 +439,12 @@ const PlanTrip: React.FC = () => {
 
             {/* Linha 3-4 */}
             <div
-              className={`flex-1 h-0.5 mx-4 ${
+              className={`w-full sm:flex-1 h-0.5 sm:h-0.5 sm:w-auto mx-4 ${
                 etapa >= 4 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
 
-            {/* Etapa 4 - Gastronomia (invertida) */}
+            {/* Etapa 4 */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -413,12 +468,12 @@ const PlanTrip: React.FC = () => {
 
             {/* Linha 4-5 */}
             <div
-              className={`flex-1 h-0.5 mx-4 ${
+              className={`w-full sm:flex-1 h-0.5 sm:h-0.5 sm:w-auto mx-4 ${
                 etapa >= 5 ? "bg-blue-600" : "bg-gray-200"
               }`}
             ></div>
 
-            {/* Etapa 5 - Revisão (invertida) */}
+            {/* Etapa 5 */}
             <div className="flex items-center">
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -470,8 +525,8 @@ const PlanTrip: React.FC = () => {
               />
             </div>
 
-            <div className="flex gap-3">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative w-full">
                 <label htmlFor="">Data de Ida</label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none mt-6">
                   <CalendarIcon className="h-5 w-5 text-gray-400" />
@@ -483,7 +538,7 @@ const PlanTrip: React.FC = () => {
                   className="p-3 pl-10 border rounded-md w-full"
                 />
               </div>
-              <div className="relative">
+              <div className="relative w-full">
                 <label htmlFor="">Data de Volta</label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none mt-6">
                   <CalendarIcon className="h-5 w-5 text-gray-400" />
@@ -526,7 +581,7 @@ const PlanTrip: React.FC = () => {
             <p className="mb-5">
               Atividades Preferidas (selecione quantas quiser)
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {opcoesInteresses.map(({ label, valor }) => (
                 <label key={valor} className="flex items-center gap-2">
                   <input
@@ -549,7 +604,7 @@ const PlanTrip: React.FC = () => {
             <p className="mb-5">
               Escolha os tipos de gastronomia que mais gosta:
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {gastronomicas.map(({ label, valor }) => (
                 <label key={valor} className="flex items-center gap-2">
                   <input
@@ -567,7 +622,9 @@ const PlanTrip: React.FC = () => {
         {etapa === 5 && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Quantidade de pontos turísticos que deseja visitar:
+              Informe a quantidade de pontos turísticos que deseja visitar
+              durante sua estadia — considere apenas os dias em que já estará no
+              local de destino.
             </label>
             <input
               type="number"
@@ -577,13 +634,10 @@ const PlanTrip: React.FC = () => {
               onChange={(e) => setQuantidadePontos(Number(e.target.value))}
               className="p-3 border rounded-md w-full"
             />
-            <p className="text-sm text-gray-500 mt-1">
-              Máximo: {resultados.length} pontos encontrados.
-            </p>
           </div>
         )}
 
-        <div className="flex justify-between">
+        <div className="flex justify-between flex-col sm:flex-row gap-3">
           <button
             onClick={voltar}
             disabled={etapa === 1}
@@ -607,6 +661,41 @@ const PlanTrip: React.FC = () => {
             >
               Acessar Roteiro
             </a>
+          </div>
+        )}
+
+        {modalStatus && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg p-6 text-center w-96 shadow-xl">
+              {modalStatus === "gerando" && (
+                <>
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="animate-spin text-2xl mr-2">⏳</div>
+                    <h2 className="text-lg font-semibold">
+                      Roteiro sendo gerado...
+                    </h2>
+                  </div>
+
+                  <p className="text-gray-600">
+                    Estamos montando sua viagem ideal. Isso pode levar alguns
+                    segundos.
+                  </p>
+                </>
+              )}
+              {modalStatus === "concluido" && (
+                <>
+                  <p className="text-gray-600 mb-4">
+                    Seu roteiro está pronto. Clique abaixo para visualizar.
+                  </p>
+                  <a
+                    href="/dashboard"
+                    className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Ir para o Dashboard
+                  </a>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

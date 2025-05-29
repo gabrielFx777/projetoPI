@@ -11,7 +11,12 @@ async function buscarClimaPorCoordenadas({ lat, lon, dias, lang = "pt" }) {
       },
     });
 
-    return resp.data.forecast.forecastday;
+    const forecast = resp.data.forecast.forecastday;
+
+    // LOG para depuração — mostra os dias retornados pela API
+    console.log("Dias retornados pela WeatherAPI:", forecast.map(d => d.date));
+
+    return forecast;
   } catch (error) {
     console.error("Erro ao buscar clima na WeatherAPI:", error.message);
     throw error;

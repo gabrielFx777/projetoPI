@@ -19,31 +19,43 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await axios.post("https://projetopi-1.onrender.com/api/login", {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        "https://projetopi-1.onrender.com/api/login",
+        {
+          email,
+          password,
+        }
+      );
+
       console.log("Login bem-sucedido:", response.data);
-      const { token, userName, userId } = response.data; // Inclua userId na resposta
-      // Armazenando os dados no localStorage
+      const { token, userName, userId } = response.data;
+
       localStorage.setItem("token", token);
       localStorage.setItem(
         "user",
         JSON.stringify({ nome: userName, id: userId })
-      ); // Armazena o id do usuário
+      );
 
-      // Atualiza o nome de usuário no contexto global
-      setUserName(userName); // Atualiza o estado global
+      setUserName(userName);
       setIsAuthenticated(true);
 
-      // Redireciona o usuário para o dashboard correto com base no papel
       if (userId === "admin") {
-        navigate("/admin-dashboard"); // Se o usuário for admin
+        navigate("/admin-dashboard");
       } else {
-        navigate("/dashboard"); // Caso contrário, vai para o painel do usuário comum
+        navigate("/dashboard");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao fazer login", error);
+
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          alert("Email ou senha incorretos.");
+        } else {
+          alert("Erro ao conectar com o servidor.");
+        }
+      } else {
+        alert("Erro inesperado. Tente novamente.");
+      }
     } finally {
       setLoading(false);
     }
