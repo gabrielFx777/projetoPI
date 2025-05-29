@@ -189,8 +189,8 @@ export function Itinerary() {
       setLoading(false);
     };
     fetchData();
-    const intervalId = setInterval(fetchData, 100000);
-    return () => clearInterval(intervalId);
+    // const intervalId = setInterval(fetchData, 100000);
+    // return () => clearInterval(intervalId);
   }, [id]);
 
   if (loading || !tripData) {
@@ -260,49 +260,15 @@ export function Itinerary() {
       body: JSON.stringify(corpo),
     });
 
-    setTripData((prev: any) => {
-      const index = isRestaurante
-        ? restaurantes.findIndex((r: any) => r.id === editingPoint.id)
-        : prev.resultados.findIndex((p: any) => p.id === editingPoint.id);
+    // 🧠 Atualiza dados após a troca
+    const trip = await fetchTripData(); // reobtem as datas e totalDays
+    if (!trip) return;
 
-      if (index === -1) return prev;
+    await fetchPontosExtras();
+    await fetchRestaurantes(trip.totalDays);
+    await fetchPontos(trip.totalDays);
 
-      const novo = isRestaurante
-        ? restaurantesExtras.find((e) => e.id === selectedExtraId)
-        : pontosExtras.find((e) => e.id === selectedExtraId);
-
-      if (!novo) return prev;
-
-      if (isRestaurante) {
-        const novosRestaurantes = [...restaurantes];
-        novosRestaurantes[index] = {
-          ...novo,
-          id: editingPoint.id,
-          dia: editingPoint.dia,
-        };
-        setRestaurantes(novosRestaurantes);
-        return {
-          ...prev,
-          restaurantes: novosRestaurantes,
-        };
-      } else {
-        const novosResultados = [...prev.resultados];
-        novosResultados[index] = {
-          ...novo,
-          id: editingPoint.id,
-          dia: editingPoint.dia,
-          ponto_tipo: novo.tipo,
-        };
-        return { ...prev, resultados: novosResultados };
-      }
-    });
-    console.log("🧪 Substituindo:", {
-      tipo: editingPoint?.tipo,
-      ponto_tipo: editingPoint?.ponto_tipo,
-      nome: editingPoint?.nome,
-      isRestaurante,
-    });
-
+    // Fecha a modal e limpa os estados
     setModalOpen(false);
     setEditingPoint(null);
     setSelectedExtraId(null);

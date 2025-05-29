@@ -46,6 +46,7 @@ const PlanTrip: React.FC = () => {
   const [resultados, setResultados] = useState<PontoTuristico[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [quantidadePontos, setQuantidadePontos] = useState(5); // valor inicial padrão
+  const hoje = new Date().toISOString().split("T")[0];
 
   const handleFinalizar = (novaViagem) => {
     setTrips((prevTrips) => [...prevTrips, novaViagem]);
@@ -527,7 +528,7 @@ const PlanTrip: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative w-full">
-                <label htmlFor="">Data de Ida</label>
+                <label htmlFor="">Data de Chegada no Destino</label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none mt-6">
                   <CalendarIcon className="h-5 w-5 text-gray-400" />
                 </div>
@@ -535,9 +536,14 @@ const PlanTrip: React.FC = () => {
                   type="date"
                   value={dataIda}
                   onChange={(e) => setDataIda(e.target.value)}
+                  min={hoje} // 🔒 Impede seleção de datas anteriores
                   className="p-3 pl-10 border rounded-md w-full"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Essa é a data em que você já estará na cidade de destino.
+                </p>
               </div>
+
               <div className="relative w-full">
                 <label htmlFor="">Data de Volta</label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none mt-6">
@@ -547,8 +553,12 @@ const PlanTrip: React.FC = () => {
                   type="date"
                   value={dataVolta}
                   onChange={(e) => setDataVolta(e.target.value)}
+                  min={dataIda || hoje} // ⏳ Só permite data igual ou depois da chegada
                   className="p-3 pl-10 border rounded-md w-full"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Essa é a data em que você deixará a cidade de destino.
+                </p>
               </div>
             </div>
           </div>
