@@ -18,7 +18,13 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import localizacaoIcon from "../../imgs/localizacao.png";
 
+import { useRef } from "react";
+import html2pdf from "html2pdf.js";
+
 export function Itinerary() {
+  const itineraryRef = useRef<HTMLDivElement>(null);
+  const refCompleto = useRef<HTMLDivElement>(null);
+
   function detectarSeEhRestaurante(ponto: any) {
     if (!ponto) return false;
 
@@ -352,497 +358,550 @@ export function Itinerary() {
     );
   }
 
+  function exportarPDFComDesign() {
+    if (!itineraryRef.current) return;
+
+    const opt = {
+      margin: 0,
+      filename: `itinerario_${tripData.destination.replace(/\s+/g, "_")}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 }, // melhor qualidade
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+
+    html2pdf().from(itineraryRef.current).set(opt).save();
+  }
+
+  function exportarPDFCompleto() {
+    if (!refCompleto.current) return;
+
+    const opt = {
+      margin: 0,
+      filename: `itinerario_completo_${tripData.destination.replace(
+        /\s+/g,
+        "_"
+      )}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+
+    html2pdf().from(refCompleto.current).set(opt).save();
+  }
+
   return (
-    <div className="bg-gray-50 min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-900">
-              {tripData.destination}
-            </h1>
-            <p className="mt-2 flex items-center text-sm text-gray-500">
-              <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-              {formatarDataISO(tripData.startDate)} -{" "}
-              {formatarDataISO(tripData.endDate)} ({tripData.totalDays} dias)
-            </p>
-          </div>
-          <div className="mt-4 md:mt-0 flex space-x-3">
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              <ShareIcon className="mr-2 h-4 w-4" />
-              Compartilhar
-            </button>
-            <button
-              onClick={() => setIsEditingMode((prev) => !prev)}
-              className="inline-flex items-center px-4 py-2 … bg-blue-300 hover:bg-blue-700"
-            >
-              <EditIcon className="mr-2 h-4 w-4" />
-              {isEditingMode ? "Cancelar" : "Editar"}
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="col-span-1">
-            <div className="bg-white shadow overflow-hidden rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900">
-                  Informações da Viagem
-                </h2>
-                <dl className="mt-4 space-y-4">
-                  <div className="flex items-center">
-                    <dt className="flex-shrink-0">
-                      <MapPinIcon className="h-6 w-6 text-gray-400" />
-                    </dt>
-                    <dd className="ml-3 text-sm text-gray-900">
-                      {tripData.destination}
-                    </dd>
-                  </div>
-                  <div className="flex items-center">
-                    <dt className="flex-shrink-0">
-                      <CalendarIcon className="h-6 w-6 text-gray-400" />
-                    </dt>
-                    <dd className="ml-3 text-sm text-gray-900">
-                      {formatarDataISO(tripData.startDate)} -{" "}
-                      {formatarDataISO(tripData.endDate)}
-                    </dd>
-                  </div>
-                  <div className="flex items-center">
-                    <dt className="flex-shrink-0">
-                      <ClockIcon className="h-6 w-6 text-gray-400" />
-                    </dt>
-                    <dd className="ml-3 text-sm text-gray-900">
-                      {tripData.totalDays} dias
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+    <div ref={itineraryRef} className="bg-gray-50 min-h-screen py-8">
+      <div className="bg-gray-50 min-h-screen py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl font-extrabold text-gray-900">
+                {tripData.destination}
+              </h1>
+              <p className="mt-2 flex items-center text-sm text-gray-500">
+                <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                {formatarDataISO(tripData.startDate)} -{" "}
+                {formatarDataISO(tripData.endDate)} ({tripData.totalDays} dias)
+              </p>
             </div>
+            <div className="mt-4 md:mt-0 flex space-x-3">
+              <button
+                onClick={exportarPDFComDesign}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <ShareIcon className="mr-2 h-4 w-4" />
+                Download
+              </button>
 
-            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900">
-                  Previsão do Tempo
-                </h2>
-                <ul className="mt-4 space-y-3">
-                  {tripData.clima &&
-                  Array.isArray(tripData.clima) &&
-                  tripData.clima.length > 0 ? (
-                    tripData.clima.map((clima) => (
-                      <li
-                        key={clima.data}
-                        className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
-                      >
-                        <div className="flex items-center">
-                          <span className="h-6 w-6 text-gray-400">
-                            {clima.descricao.includes("chuva") ? (
-                              <span>🌧️</span>
-                            ) : clima.descricao.includes("sol") ? (
-                              <span>☀️</span>
-                            ) : (
-                              <span>☁️</span>
-                            )}
-                          </span>
-                          <span className="ml-3 text-sm text-gray-900">
-                            {clima.descricao
-                              .replace("Possibilidade de ", "")
-                              .replace(/\birregular\b/gi, "")
-                              .trim()}
-                          </span>
-                          <span className="ml-3 text-sm text-gray-900">
-                            {`dia ${formatarDataISO(clima.data).split("/")[0]}`}
-                          </span>
-                        </div>
-
-                        <div className="text-sm">
-                          <span className="font-medium">
-                            Min: {clima.temp_min}°C, Max: {clima.temp_max}°C
-                          </span>
-                        </div>
-                      </li>
-                    ))
-                  ) : (
-                    <li className="text-gray-500">
-                      Nenhuma previsão do tempo disponível.
-                    </li>
-                  )}
-                </ul>
-              </div>
+              <button
+                onClick={() => setIsEditingMode((prev) => !prev)}
+                className="inline-flex items-center px-4 py-2 … bg-blue-300 hover:bg-blue-700"
+              >
+                <EditIcon className="mr-2 h-4 w-4" />
+                {isEditingMode ? "Cancelar" : "Editar"}
+              </button>
             </div>
+          </div>
 
-            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900">Legenda</h2>
-                <div className="flex flex-col space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 rounded-full bg-yellow-100"></div>
-                    <span className="text-sm text-gray-700">Restaurantes</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 rounded-full bg-blue-200"></div>
-                    <span className="text-sm text-gray-700">
-                      Pontos Turísticos
-                    </span>
-                  </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="col-span-1">
+              <div className="bg-white shadow overflow-hidden rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Informações da Viagem
+                  </h2>
+                  <dl className="mt-4 space-y-4">
+                    <div className="flex items-center">
+                      <dt className="flex-shrink-0">
+                        <MapPinIcon className="h-6 w-6 text-gray-400" />
+                      </dt>
+                      <dd className="ml-3 text-sm text-gray-900">
+                        {tripData.destination}
+                      </dd>
+                    </div>
+                    <div className="flex items-center">
+                      <dt className="flex-shrink-0">
+                        <CalendarIcon className="h-6 w-6 text-gray-400" />
+                      </dt>
+                      <dd className="ml-3 text-sm text-gray-900">
+                        {formatarDataISO(tripData.startDate)} -{" "}
+                        {formatarDataISO(tripData.endDate)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center">
+                      <dt className="flex-shrink-0">
+                        <ClockIcon className="h-6 w-6 text-gray-400" />
+                      </dt>
+                      <dd className="ml-3 text-sm text-gray-900">
+                        {tripData.totalDays} dias
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="col-span-2">
-            <div className="bg-white shadow overflow-hidden rounded-lg">
-              <div className="border-b border-gray-200">
-                <nav className="flex overflow-x-auto">
-                  {Array.from({ length: tripData.totalDays }).map(
-                    (_, index) => {
-                      const day = index + 1;
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => setActiveDay(day)}
-                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${
-                            activeDay === day
-                              ? "border-b-2 border-blue-500 text-blue-600"
-                              : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          Dia {day}
-                          <span className="block text-xs text-gray-500">
-                            {(() => {
-                              const start = tripData.startDate.split("T")[0];
-                              const startDate = new Date(`${start}T00:00:00Z`);
-                              const targetDate = new Date(
-                                startDate.getTime() +
-                                  (day - 1) * 24 * 60 * 60 * 1000
-                              );
-                              return targetDate.toLocaleDateString("pt-BR", {
-                                month: "short",
-                                day: "numeric",
-                              });
-                            })()}
-                          </span>
-                        </button>
-                      );
-                    }
-                  )}
-                </nav>
-              </div>
-
-              <div className="px-4 py-5 sm:p-6">
+              <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
-                  {(() => {
-                    const pontos =
-                      tripData.resultados?.filter(
-                        (p) =>
-                          p.dia === activeDay && !detectarSeEhRestaurante(p)
-                      ) || [];
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Previsão do Tempo
+                  </h2>
+                  <ul className="mt-4 space-y-3">
+                    {tripData.clima &&
+                    Array.isArray(tripData.clima) &&
+                    tripData.clima.length > 0 ? (
+                      tripData.clima.map((clima) => (
+                        <li
+                          key={clima.data}
+                          className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
+                        >
+                          <div className="flex items-center">
+                            <span className="h-6 w-6 text-gray-400">
+                              {clima.descricao.includes("chuva") ? (
+                                <span>🌧️</span>
+                              ) : clima.descricao.includes("sol") ? (
+                                <span>☀️</span>
+                              ) : (
+                                <span>☁️</span>
+                              )}
+                            </span>
+                            <span className="ml-3 text-sm text-gray-900">
+                              {clima.descricao
+                                .replace("Possibilidade de ", "")
+                                .replace(/\birregular\b/gi, "")
+                                .replace(/\bParcialmente\b/gi, "")
+                                .trim()}
+                            </span>
 
-                    const rests = restaurantes.filter(
-                      (r) => r.dia === activeDay
-                    );
-                    const intercalados: JSX.Element[] = [];
-                    const refeicoes = [
-                      "☕ Café da manhã",
-                      "🍽️ Almoço",
-                      "🌙 Jantar",
-                    ];
+                            <span className="ml-3 text-sm text-gray-900">
+                              {`dia ${
+                                formatarDataISO(clima.data).split("/")[0]
+                              }`}
+                            </span>
+                          </div>
 
-                    const renderRestaurante = (rest, i) => (
-                      <React.Fragment key={`rest-${rest.id}`}>
-                        <p className="text-sm text-gray-700 mb-1 ml-1">
-                          {refeicoes[i]}
-                        </p>
-                        <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="text-xl font-semibold">
-                                {rest.nome}
-                              </h3>
-                              {(rest.serve_cafe ||
-                                rest.serve_almoco ||
-                                rest.serve_jantar) && (
-                                <p className="text-sm text-green-700 mt-1">
-                                  Refeições disponíveis:{" "}
-                                  {[
-                                    rest.serve_cafe ? "Café da manhã" : null,
-                                    rest.serve_almoco ? "Almoço" : null,
-                                    rest.serve_jantar ? "Jantar" : null,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(", ")}
-                                </p>
-                              )}
-                              {rest.endereco && (
-                                <p>
-                                  <strong>Endereço:</strong> {rest.endereco}
-                                </p>
-                              )}
-                              {rest.rating && (
-                                <p>
-                                  <strong>Avaliação:</strong> {rest.rating} ⭐
-                                </p>
-                              )}
-                            </div>
-                            {isEditingMode && (
-                              <div className="flex space-x-2">
-                                <EditIcon
-                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
-                                  onClick={() => {
-                                    setEditingPoint(rest);
-                                    setSelectedExtraId(null);
-                                    setModalOpen(true);
-                                  }}
-                                />
-                                <Trash2Icon className="h-5 w-5 cursor-pointer" />
-                              </div>
-                            )}
+                          <div className="text-sm">
+                            <span className="font-medium">
+                              Min: {clima.temp_min}°C, Max: {clima.temp_max}°C
+                            </span>
                           </div>
                         </li>
-                      </React.Fragment>
-                    );
+                      ))
+                    ) : (
+                      <li className="text-gray-500">
+                        Nenhuma previsão do tempo disponível.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
 
-                    const renderPonto = (ponto) => (
-                      <React.Fragment key={`ponto-${ponto.id}`}>
-                        <p className="text-sm text-gray-700 mb-1 ml-1">
-                          🗺️ Pontos turísticos
-                        </p>
-                        <div className="mb-4 p-4 border rounded bg-blue-200">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="text-xl font-semibold">
-                                {ponto.ponto_nome || ponto.nome}
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                Endereço:{" "}
-                                {ponto.ponto_endereco || ponto.endereco}
-                              </p>
-                            </div>
-                            {isEditingMode && (
-                              <div className="flex space-x-2">
-                                <EditIcon
-                                  className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
-                                  onClick={() => {
-                                    setEditingPoint(ponto);
-                                    setSelectedExtraId(null);
-                                    setModalOpen(true);
-                                  }}
-                                />
-                                <Trash2Icon
-                                  className="h-5 w-5 cursor-pointer text-red-600 hover:text-red-800"
-                                  onClick={async () => {
-                                    if (
-                                      !window.confirm(
-                                        "Tem certeza que deseja remover este ponto do roteiro?"
-                                      )
-                                    )
-                                      return;
+              <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h2 className="text-lg font-medium text-gray-900">Legenda</h2>
+                  <div className="flex flex-col space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 rounded-full bg-yellow-100"></div>
+                      <span className="text-sm text-gray-700">
+                        Restaurantes
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 rounded-full bg-blue-200"></div>
+                      <span className="text-sm text-gray-700">
+                        Pontos Turísticos
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                                    try {
-                                      await fetch(
-                                        `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${ponto.id}/mover-para-extras`,
-                                        {
-                                          method: "DELETE",
-                                        }
-                                      );
-
-                                      setTripData((prev: any) => ({
-                                        ...prev,
-                                        resultados: prev.resultados.filter(
-                                          (x: any) => x.id !== ponto.id
-                                        ),
-                                      }));
-
-                                      fetchPontosExtras();
-                                    } catch (error) {
-                                      console.error(
-                                        "Erro ao mover ponto para extras:",
-                                        error
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </React.Fragment>
-                    );
-
-                    if (rests.length === 3) {
-                      const maxLength = Math.max(rests.length, pontos.length);
-                      for (let i = 0; i < maxLength; i++) {
-                        if (rests[i])
-                          intercalados.push(renderRestaurante(rests[i], i));
-                        if (pontos[i])
-                          intercalados.push(renderPonto(pontos[i]));
+            <div className="col-span-2">
+              <div className="bg-white shadow overflow-hidden rounded-lg">
+                <div className="border-b border-gray-200">
+                  <nav className="flex overflow-x-auto">
+                    {Array.from({ length: tripData.totalDays }).map(
+                      (_, index) => {
+                        const day = index + 1;
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => setActiveDay(day)}
+                            className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${
+                              activeDay === day
+                                ? "border-b-2 border-blue-500 text-blue-600"
+                                : "text-gray-500 hover:text-gray-700"
+                            }`}
+                          >
+                            Dia {day}
+                            <span className="block text-xs text-gray-500">
+                              {(() => {
+                                const start = tripData.startDate.split("T")[0];
+                                const startDate = new Date(
+                                  `${start}T00:00:00Z`
+                                );
+                                const targetDate = new Date(
+                                  startDate.getTime() +
+                                    (day - 1) * 24 * 60 * 60 * 1000
+                                );
+                                return targetDate.toLocaleDateString("pt-BR", {
+                                  month: "short",
+                                  day: "numeric",
+                                });
+                              })()}
+                            </span>
+                          </button>
+                        );
                       }
-                    } else {
-                      if (pontos[0]) intercalados.push(renderPonto(pontos[0]));
-                      if (rests[0])
-                        intercalados.push(renderRestaurante(rests[0], 1));
-                      if (pontos[1]) intercalados.push(renderPonto(pontos[1]));
-                      if (rests[1])
-                        intercalados.push(renderRestaurante(rests[1], 2));
-                    }
+                    )}
+                  </nav>
+                </div>
 
-                    return intercalados;
-                  })()}
+                <div className="px-4 py-5 sm:p-6">
+                  <div className="px-4 py-5 sm:p-6">
+                    {(() => {
+                      const pontos =
+                        tripData.resultados?.filter(
+                          (p) =>
+                            p.dia === activeDay && !detectarSeEhRestaurante(p)
+                        ) || [];
+
+                      const rests = restaurantes.filter(
+                        (r) => r.dia === activeDay
+                      );
+                      const intercalados: JSX.Element[] = [];
+                      const refeicoes = [
+                        "☕ Café da manhã",
+                        "🍽️ Almoço",
+                        "🌙 Jantar",
+                      ];
+
+                      const renderRestaurante = (rest, i) => (
+                        <React.Fragment key={`rest-${rest.id}`}>
+                          <p className="text-sm text-gray-700 mb-1 ml-1">
+                            {refeicoes[i]}
+                          </p>
+                          <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="text-xl font-semibold">
+                                  {rest.nome}
+                                </h3>
+                                {(rest.serve_cafe ||
+                                  rest.serve_almoco ||
+                                  rest.serve_jantar) && (
+                                  <p className="text-sm text-green-700 mt-1">
+                                    Refeições disponíveis:{" "}
+                                    {[
+                                      rest.serve_cafe ? "Café da manhã" : null,
+                                      rest.serve_almoco ? "Almoço" : null,
+                                      rest.serve_jantar ? "Jantar" : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </p>
+                                )}
+                                {rest.endereco && (
+                                  <p>
+                                    <strong>Endereço:</strong> {rest.endereco}
+                                  </p>
+                                )}
+                                {rest.rating && (
+                                  <p>
+                                    <strong>Avaliação:</strong> {rest.rating} ⭐
+                                  </p>
+                                )}
+                              </div>
+                              {isEditingMode && (
+                                <div className="flex space-x-2">
+                                  <EditIcon
+                                    className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                                    onClick={() => {
+                                      setEditingPoint(rest);
+                                      setSelectedExtraId(null);
+                                      setModalOpen(true);
+                                    }}
+                                  />
+                                  <Trash2Icon className="h-5 w-5 cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        </React.Fragment>
+                      );
+
+                      const renderPonto = (ponto) => (
+                        <React.Fragment key={`ponto-${ponto.id}`}>
+                          <p className="text-sm text-gray-700 mb-1 ml-1">
+                            🗺️ Pontos turísticos
+                          </p>
+                          <div className="mb-4 p-4 border rounded bg-blue-200">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="text-xl font-semibold">
+                                  {ponto.ponto_nome || ponto.nome}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                  Endereço:{" "}
+                                  {ponto.ponto_endereco || ponto.endereco}
+                                </p>
+                              </div>
+                              {isEditingMode && (
+                                <div className="flex space-x-2">
+                                  <EditIcon
+                                    className="h-5 w-5 cursor-pointer text-gray-600 hover:text-gray-800"
+                                    onClick={() => {
+                                      setEditingPoint(ponto);
+                                      setSelectedExtraId(null);
+                                      setModalOpen(true);
+                                    }}
+                                  />
+                                  <Trash2Icon
+                                    className="h-5 w-5 cursor-pointer text-red-600 hover:text-red-800"
+                                    onClick={async () => {
+                                      if (
+                                        !window.confirm(
+                                          "Tem certeza que deseja remover este ponto do roteiro?"
+                                        )
+                                      )
+                                        return;
+
+                                      try {
+                                        await fetch(
+                                          `https://projetopi-1.onrender.com/api/roteiros2/${id}/pontos/${ponto.id}/mover-para-extras`,
+                                          {
+                                            method: "DELETE",
+                                          }
+                                        );
+
+                                        setTripData((prev: any) => ({
+                                          ...prev,
+                                          resultados: prev.resultados.filter(
+                                            (x: any) => x.id !== ponto.id
+                                          ),
+                                        }));
+
+                                        fetchPontosExtras();
+                                      } catch (error) {
+                                        console.error(
+                                          "Erro ao mover ponto para extras:",
+                                          error
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+
+                      if (rests.length === 3) {
+                        const maxLength = Math.max(rests.length, pontos.length);
+                        for (let i = 0; i < maxLength; i++) {
+                          if (rests[i])
+                            intercalados.push(renderRestaurante(rests[i], i));
+                          if (pontos[i])
+                            intercalados.push(renderPonto(pontos[i]));
+                        }
+                      } else {
+                        if (pontos[0])
+                          intercalados.push(renderPonto(pontos[0]));
+                        if (rests[0])
+                          intercalados.push(renderRestaurante(rests[0], 1));
+                        if (pontos[1])
+                          intercalados.push(renderPonto(pontos[1]));
+                        if (rests[1])
+                          intercalados.push(renderRestaurante(rests[1], 2));
+                      }
+
+                      return intercalados;
+                    })()}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Mapa do Dia
-                </h2>
-                <div className="h-80 rounded-lg overflow-hidden z-0 relative">
-                  <MapContainer
-                    center={centroMapa}
-                    zoom={13}
-                    scrollWheelZoom={false}
-                    className="h-full w-full z-0"
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+              <div className="mt-6 bg-white shadow overflow-hidden rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Mapa do Dia
+                  </h2>
+                  <div className="h-80 rounded-lg overflow-hidden z-0 relative">
+                    <MapContainer
+                      center={centroMapa}
+                      zoom={13}
+                      scrollWheelZoom={false}
+                      className="h-full w-full z-0"
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
 
-                    {tripData.resultados
-                      ?.filter((p) => {
-                        const tipo = (
-                          p.ponto_tipo ||
-                          p.tipo ||
-                          ""
-                        ).toLowerCase();
-                        const isRestaurante =
-                          tipo.includes("restaurant") || tipo.includes("food");
-                        const temCoord =
-                          p.ponto_coordenadas ||
-                          p.coordenadas ||
-                          (p.ponto_lat && p.ponto_lon);
-                        return (
-                          p.dia === activeDay && temCoord && !isRestaurante
-                        );
-                      })
-                      .map((ponto) => {
-                        const lat =
-                          ponto.ponto_lat ||
-                          ponto.coordenadas?.lat ||
-                          ponto.ponto_coordenadas?.lat;
-                        const lon =
-                          ponto.ponto_lon ||
-                          ponto.coordenadas?.lon ||
-                          ponto.ponto_coordenadas?.lon;
-                        if (!lat || !lon) return null;
+                      {tripData.resultados
+                        ?.filter((p) => {
+                          const tipo = (
+                            p.ponto_tipo ||
+                            p.tipo ||
+                            ""
+                          ).toLowerCase();
+                          const isRestaurante =
+                            tipo.includes("restaurant") ||
+                            tipo.includes("food");
+                          const temCoord =
+                            p.ponto_coordenadas ||
+                            p.coordenadas ||
+                            (p.ponto_lat && p.ponto_lon);
+                          return (
+                            p.dia === activeDay && temCoord && !isRestaurante
+                          );
+                        })
+                        .map((ponto) => {
+                          const lat =
+                            ponto.ponto_lat ||
+                            ponto.coordenadas?.lat ||
+                            ponto.ponto_coordenadas?.lat;
+                          const lon =
+                            ponto.ponto_lon ||
+                            ponto.coordenadas?.lon ||
+                            ponto.ponto_coordenadas?.lon;
+                          if (!lat || !lon) return null;
 
-                        return (
-                          <Marker
-                            key={ponto.id}
-                            position={[lat, lon]}
-                            icon={pontoTuristicoIcon}
-                          >
-                            <Popup>
-                              <strong>{ponto.ponto_nome || ponto.nome}</strong>
-                              <br />
-                              {ponto.ponto_endereco || ponto.endereco}
-                            </Popup>
-                          </Marker>
-                        );
-                      })}
+                          return (
+                            <Marker
+                              key={ponto.id}
+                              position={[lat, lon]}
+                              icon={pontoTuristicoIcon}
+                            >
+                              <Popup>
+                                <strong>
+                                  {ponto.ponto_nome || ponto.nome}
+                                </strong>
+                                <br />
+                                {ponto.ponto_endereco || ponto.endereco}
+                              </Popup>
+                            </Marker>
+                          );
+                        })}
 
-                    {restaurantes
-                      .filter(
-                        (rest) =>
-                          rest.dia === activeDay &&
-                          (rest.lat || rest.coordenadas?.lat)
-                      )
-                      .map((rest) => {
-                        const lat = rest.lat || rest.coordenadas?.lat;
-                        const lon = rest.lon || rest.coordenadas?.lon;
-                        if (!lat || !lon) return null;
-                        return (
-                          <Marker
-                            key={rest.id}
-                            position={[lat, lon]}
-                            icon={
-                              new L.Icon({
-                                iconUrl:
-                                  "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
-                                iconSize: [25, 25],
-                              })
-                            }
-                          >
-                            <Popup>
-                              <strong>{rest.nome}</strong>
-                              <br />
-                              {rest.endereco}
-                              <br />
-                              Refeições:{" "}
-                              {[
-                                rest.serve_cafe ? "Café" : null,
-                                rest.serve_almoco ? "Almoço" : null,
-                                rest.serve_jantar ? "Jantar" : null,
-                              ]
-                                .filter(Boolean)
-                                .join(", ")}
-                            </Popup>
-                          </Marker>
-                        );
-                      })}
-                  </MapContainer>
+                      {restaurantes
+                        .filter(
+                          (rest) =>
+                            rest.dia === activeDay &&
+                            (rest.lat || rest.coordenadas?.lat)
+                        )
+                        .map((rest) => {
+                          const lat = rest.lat || rest.coordenadas?.lat;
+                          const lon = rest.lon || rest.coordenadas?.lon;
+                          if (!lat || !lon) return null;
+                          return (
+                            <Marker
+                              key={rest.id}
+                              position={[lat, lon]}
+                              icon={
+                                new L.Icon({
+                                  iconUrl:
+                                    "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
+                                  iconSize: [25, 25],
+                                })
+                              }
+                            >
+                              <Popup>
+                                <strong>{rest.nome}</strong>
+                                <br />
+                                {rest.endereco}
+                                <br />
+                                Refeições:{" "}
+                                {[
+                                  rest.serve_cafe ? "Café" : null,
+                                  rest.serve_almoco ? "Almoço" : null,
+                                  rest.serve_jantar ? "Jantar" : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </Popup>
+                            </Marker>
+                          );
+                        })}
+                    </MapContainer>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {modalOpen && editingPoint && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">
-              {detectarSeEhRestaurante(editingPoint)
-                ? "Trocar Restaurante"
-                : "Trocar Ponto Turístico"}
-            </h2>
-
-            <select
-              className="w-full border p-2 rounded"
-              value={selectedExtraId || ""}
-              onChange={(e) => setSelectedExtraId(e.target.value)}
-            >
-              <option value="">
-                -- escolha um novo{" "}
+        {modalOpen && editingPoint && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold mb-4">
                 {detectarSeEhRestaurante(editingPoint)
-                  ? "restaurante"
-                  : "ponto turístico"}{" "}
-                --
-              </option>
-              {(detectarSeEhRestaurante(editingPoint)
-                ? restaurantesExtras
-                : pontosExtras
-              ).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.nome}
-                </option>
-              ))}
-            </select>
+                  ? "Trocar Restaurante"
+                  : "Trocar Ponto Turístico"}
+              </h2>
 
-            <div className="mt-6 flex justify-end space-x-2">
-              <button className="px-4 py-2" onClick={() => setModalOpen(false)}>
-                Cancelar
-              </button>
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded"
-                onClick={handleConfirmSwap}
-                disabled={!selectedExtraId}
+              <select
+                className="w-full border p-2 rounded"
+                value={selectedExtraId || ""}
+                onChange={(e) => setSelectedExtraId(e.target.value)}
               >
-                Confirmar
-              </button>
+                <option value="">
+                  -- escolha um novo{" "}
+                  {detectarSeEhRestaurante(editingPoint)
+                    ? "restaurante"
+                    : "ponto turístico"}{" "}
+                  --
+                </option>
+                {(detectarSeEhRestaurante(editingPoint)
+                  ? restaurantesExtras
+                  : pontosExtras
+                ).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nome}
+                  </option>
+                ))}
+              </select>
+
+              <div className="mt-6 flex justify-end space-x-2">
+                <button
+                  className="px-4 py-2"
+                  onClick={() => setModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                  onClick={handleConfirmSwap}
+                  disabled={!selectedExtraId}
+                >
+                  Confirmar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
