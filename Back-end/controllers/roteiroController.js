@@ -246,10 +246,10 @@ async function criarRoteiro(req, res) {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           roteiroId,
-          ex.id || null,
+          ex.id ?? ex.xid ?? null,
           ex.nome || null,
           ex.tipo || null,
-          ex.endereco || null,
+          ex.endereco || "Endereço não disponível",
           ex.coordenadas?.lat || null,
           ex.coordenadas?.lon || null,
           JSON.stringify(ex.coordenadas || null),
@@ -301,8 +301,9 @@ async function listarTodosRoteiros(req, res) {
       resultado.rows.map(async (r) => {
         const pontosExtras = await pool.query(
           "SELECT * FROM pontos_extras WHERE roteiro_id = $1",
-          [r.id]
+          [r.roteiro_id]
         );
+
         return { ...r, pontosExtras: pontosExtras.rows };
       })
     );
@@ -735,9 +736,13 @@ async function buscarRoteiro(req, res) {
       lon,
       categorias,
       1,
-      10
+      30 // traz até 30 pontos
     );
+
     const pontosDetalhados = await detalharPontos(pontosBrutos);
+
+    console.log("🔎 pontosBrutos:", pontosBrutos.length);
+    console.log("🔎 pontosDetalhados:", pontosDetalhados.length);
 
     // Agrupar por tipo principal (ex: 'beaches', 'cultural', etc.)
     function agruparPorCategoria(pontos, categorias) {
@@ -775,11 +780,21 @@ async function buscarRoteiro(req, res) {
       return resultado;
     }
 
+    console.log("📦 intercalados:", intercalados.length);
+    console.log("📍 pontosLimitados:", pontosLimitados.length);
+    console.log("📍 pontosExtras:", pontosExtras.length);
+
     const grupos = agruparPorCategoria(pontosDetalhados, categorias);
-    const intercalados = intercalarGrupos(grupos, 20);
+    const intercalados = intercalarGrupos(grupos, 40);
+    console.log("📦 intercalados:", intercalados.length);
+    console.log("📍 pontosLimitados:", pontosLimitados.length);
+    console.log("📍 pontosExtras:", pontosExtras.length);
 
     const pontosLimitados = intercalados.slice(0, 10);
-    const pontosExtras = intercalados.slice(10, 20);
+    const pontosExtras = intercalados.slice(10);
+
+    console.log("🔍 Total de intercalados:", intercalados.length);
+    console.log("📌 Pontos extras previstos:", intercalados.slice(10).length);
 
     // 4. Buscar restaurantes via Google Places (baseado na cidade)
     const restaurantes = await buscarRestaurantes(lat, lon);
