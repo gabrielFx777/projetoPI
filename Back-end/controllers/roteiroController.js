@@ -234,26 +234,58 @@ async function criarRoteiro(req, res) {
       );
     }
 
-    const extrasNaoUsados = pontosExtras
-      .filter((pe) => !pontosLimitados.some((pl) => pl.id === pe.id))
-      .filter((item) => !isRestaurant(item));
+    // Primeiro, filtra todos os pontosExtras que realmente não foram usados
+    const pontosExtrasReais = pontosExtras.filter(
+      (pe) => !pontosLimitados.some((pl) => pl.id === pe.id)
+    );
 
+    // Separa entre pontos turísticos e restaurantes
+    const extrasNaoUsados = pontosExtrasReais.filter((pe) => !isRestaurant(pe));
+    const restaurantesExtras = pontosExtrasReais.filter((pe) =>
+      isRestaurant(pe)
+    );
+
+    // Insere pontos turísticos extras na tabela pontos_extras
     for (const ex of extrasNaoUsados) {
       await client.query(
         `INSERT INTO pontos_extras
-           (roteiro_id, xid, nome, tipo, endereco, lat, lon,
-            coordenadas, origem)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       (roteiro_id, xid, nome, tipo, endereco, lat, lon,
+        coordenadas, origem)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           roteiroId,
-          ex.id ?? ex.xid ?? null,
+          ex.id || null,
           ex.nome || null,
           ex.tipo || null,
-          ex.endereco || "Endereço não disponível",
+          ex.endereco || null,
           ex.coordenadas?.lat || null,
           ex.coordenadas?.lon || null,
           JSON.stringify(ex.coordenadas || null),
           ex.origem || "opentripmap",
+        ]
+      );
+    }
+
+    // Insere restaurantes extras na tabela restaurantes_extras
+    for (const r of restaurantesExtras) {
+      await client.query(
+        `INSERT INTO restaurantes_extras
+       (roteiro_id, nome, tipo, endereco, lat, lon, rating,
+        coordenadas, origem, serve_cafe, serve_almoco, serve_jantar)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [
+          roteiroId,
+          r.nome || null,
+          Array.isArray(r.types) ? r.types.join(",") : r.tipo || null,
+          r.endereco || null,
+          r.coordenadas?.lat || null,
+          r.coordenadas?.lon || null,
+          r.rating || null,
+          JSON.stringify(r.coordenadas || null),
+          r.origem || "google",
+          r.serve_cafe || false,
+          r.serve_almoco || false,
+          r.serve_jantar || false,
         ]
       );
     }
@@ -301,9 +333,8 @@ async function listarTodosRoteiros(req, res) {
       resultado.rows.map(async (r) => {
         const pontosExtras = await pool.query(
           "SELECT * FROM pontos_extras WHERE roteiro_id = $1",
-          [r.roteiro_id]
+          [r.id]
         );
-
         return { ...r, pontosExtras: pontosExtras.rows };
       })
     );
@@ -631,7 +662,6 @@ async function buscarRoteiro(req, res) {
         .json({ error: "Parâmetros obrigatórios ausentes." });
     }
 
-    // 1. Geocodifica a cidade com Nominatim
     const geo = await axios.get("https://nominatim.openstreetmap.org/search", {
       params: {
         q: `${cidade}, ${pais}`,
@@ -646,7 +676,6 @@ async function buscarRoteiro(req, res) {
 
     const { lat, lon } = geo.data[0];
 
-    // 2. Mapeia categorias de preferências para kinds da OpenTripMap
     const mapaCategorias = {
       aventura: "sport",
       cultural: "cultural",
@@ -673,101 +702,115 @@ async function buscarRoteiro(req, res) {
       dinner: "dinner",
     };
 
-    const gastronomicos = [
-      "fast_food",
-      "gourmet",
-      "vegetariano",
-      "vegano",
+    const categoriasValidas = [
+      "sport",
+      "cultural",
+      "natural",
+      "foods",
+      "shops",
+      "architecture",
+      "museums",
+      "parks",
+      "adult",
+      "nightclubs",
+      "tourist_facilities",
+      "events",
+      "beaches",
+      "mountains",
+      "vegetarian",
+      "vegan",
       "seafood",
-      "street food",
-      "breakfast",
-      "lunch",
-      "dinner",
+      "street_food",
     ];
 
     const kindsSet = new Set();
-
     (preferencias || []).forEach((pref) => {
       const categoria = mapaCategorias[pref];
       if (!categoria) return;
-
-      // Somente adiciona `categoria` se for aceito pela OpenTripMap
-      const categoriasValidasOpenTripMap = [
-        "sport",
-        "cultural",
-        "natural",
-        "foods",
-        "shops",
-        "architecture",
-        "museums",
-        "parks",
-        "adult",
-        "nightclubs",
-        "tourist_facilities",
-        "events",
-        "beaches",
-        "mountains",
-        "vegetarian",
-        "vegan",
-        "seafood",
-        "street_food",
-      ];
-
       categoria.split(",").forEach((k) => {
-        if (categoriasValidasOpenTripMap.includes(k)) {
+        if (categoriasValidas.includes(k)) {
           kindsSet.add(k);
         }
       });
     });
 
-    const kinds = Array.from(kindsSet).join(",");
+    const categorias = Array.from(kindsSet);
 
-    if (!kinds) {
+    if (!categorias.length) {
       return res
         .status(400)
         .json({ error: "Nenhuma preferência válida enviada." });
     }
 
-    const categorias = Array.from(kindsSet); // <-- esta é a lista de categorias individuais
-
-    // 3. Buscar pontos turísticos
-    const pontosBrutos = await buscarPontosTuristicos(
+    // Buscar pontos
+    let pontosBrutos = await buscarPontosTuristicos(
       lat,
       lon,
       categorias,
       1,
-      30 // traz até 30 pontos
+      10
     );
 
-    const pontosDetalhados = await detalharPontos(pontosBrutos);
+    if (!pontosBrutos || pontosBrutos.length === 0) {
+      console.warn("Nenhum ponto com categorias. Tentando fallback...");
+      const pontosFallback = await buscarPontosTuristicos(
+        lat,
+        lon,
+        "interesting_places",
+        1,
+        10
+      );
 
-    console.log("🔎 pontosBrutos:", pontosBrutos.length);
-    console.log("🔎 pontosDetalhados:", pontosDetalhados.length);
+      if (!pontosFallback || pontosFallback.length === 0) {
+        console.warn("Nem fallback retornou pontos.");
+        return res.status(404).json({
+          sucesso: false,
+          error:
+            "Nenhum ponto turístico encontrado mesmo com categorias genéricas.",
+        });
+      }
 
-    // Agrupar por tipo principal (ex: 'beaches', 'cultural', etc.)
-    function agruparPorCategoria(pontos, categorias) {
+      pontosBrutos = pontosFallback;
+    }
+
+    if (!Array.isArray(pontosBrutos) || pontosBrutos.length === 0) {
+      return res.status(404).json({
+        sucesso: false,
+        error: "Nenhum ponto turístico disponível para detalhar.",
+      });
+    }
+
+    let pontosDetalhados = [];
+    try {
+      pontosDetalhados = await detalharPontos(pontosBrutos);
+    } catch (e) {
+      console.error("Erro ao detalhar pontos:", e);
+      return res.status(500).json({
+        sucesso: false,
+        error: "Erro ao detalhar pontos turísticos.",
+      });
+    }
+
+    const agruparPorCategoria = (pontos, categorias) => {
       const grupos = {};
-      for (const cat of categorias) grupos[cat] = [];
-
-      for (const ponto of pontos) {
-        for (const cat of categorias) {
-          if (ponto.tipo && ponto.tipo.includes(cat)) {
-            grupos[cat].push(ponto);
+      categorias.forEach((c) => (grupos[c] = []));
+      pontos.forEach((p) => {
+        for (const c of categorias) {
+          if (p.tipo && p.tipo.includes(c)) {
+            grupos[c].push(p);
             break;
           }
         }
-      }
+      });
       return grupos;
-    }
+    };
 
-    // Intercalar os pontos
-    function intercalarGrupos(grupos, limiteTotal = 20) {
+    const intercalarGrupos = (grupos, limiteTotal = 20) => {
       const resultado = [];
       let adicionados = true;
-
       while (resultado.length < limiteTotal && adicionados) {
         adicionados = false;
-        for (const cat of Object.keys(grupos)) {
+        for (const cat in grupos) {
           const item = grupos[cat].shift();
           if (item) {
             resultado.push(item);
@@ -776,39 +819,29 @@ async function buscarRoteiro(req, res) {
           if (resultado.length >= limiteTotal) break;
         }
       }
-
       return resultado;
-    }
-
-    console.log("📦 intercalados:", intercalados.length);
-    console.log("📍 pontosLimitados:", pontosLimitados.length);
-    console.log("📍 pontosExtras:", pontosExtras.length);
+    };
 
     const grupos = agruparPorCategoria(pontosDetalhados, categorias);
-    const intercalados = intercalarGrupos(grupos, 40);
-    console.log("📦 intercalados:", intercalados.length);
-    console.log("📍 pontosLimitados:", pontosLimitados.length);
-    console.log("📍 pontosExtras:", pontosExtras.length);
+    const intercalados = intercalarGrupos(grupos, 20);
 
     const pontosLimitados = intercalados.slice(0, 10);
-    const pontosExtras = intercalados.slice(10);
+    const pontosExtras = intercalados.slice(10, 20);
 
-    console.log("🔍 Total de intercalados:", intercalados.length);
-    console.log("📌 Pontos extras previstos:", intercalados.slice(10).length);
-
-    // 4. Buscar restaurantes via Google Places (baseado na cidade)
     const restaurantes = await buscarRestaurantes(lat, lon);
 
-    // 5. Retornar tudo
-    res.status(200).json({
+    return res.status(200).json({
       sucesso: true,
       pontosLimitados,
       pontosExtras,
       restaurantes,
     });
   } catch (error) {
-    console.error("Erro ao buscar roteiro:", error.message);
-    res.status(500).json({ error: "Erro ao buscar roteiro" });
+    console.error("Erro final no buscarRoteiro:", error);
+    return res.status(500).json({
+      sucesso: false,
+      error: "Erro ao buscar roteiro.",
+    });
   }
 }
 
