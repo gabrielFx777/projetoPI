@@ -12,6 +12,7 @@ import {
   ShareIcon,
   EditIcon,
   Trash2Icon,
+  DownloadIcon,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
@@ -375,18 +376,33 @@ export function Itinerary() {
   function exportarPDFCompleto() {
     if (!refCompleto.current) return;
 
-    const opt = {
-      margin: 0,
-      filename: `itinerario_completo_${tripData.destination.replace(
-        /\s+/g,
-        "_"
-      )}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    };
+    // Torna visível temporariamente
+    refCompleto.current.style.display = "block";
 
-    html2pdf().from(refCompleto.current).set(opt).save();
+    // Pequeno atraso para garantir renderização
+    setTimeout(() => {
+      const opt = {
+        margin: 10,
+        filename: `itinerario_completo_${tripData.destination.replace(
+          /\s+/g,
+          "_"
+        )}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      };
+
+      html2pdf()
+        .from(refCompleto.current)
+        .set(opt)
+        .save()
+        .then(() => {
+          // Esconde novamente após gerar o PDF
+          if (refCompleto.current) {
+            refCompleto.current.style.display = "none";
+          }
+        });
+    }, 300); // Espera 300ms para garantir que o conteúdo foi renderizado
   }
 
   return (
@@ -404,12 +420,13 @@ export function Itinerary() {
                 {formatarDataISO(tripData.endDate)} ({tripData.totalDays} dias)
               </p>
             </div>
+
             <div className="mt-4 md:mt-0 flex space-x-3">
               <button
-                onClick={exportarPDFComDesign}
+                onClick={exportarPDFCompleto}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
-                <ShareIcon className="mr-2 h-4 w-4" />
+                <DownloadIcon className="h-4 w-4" />
                 Download
               </button>
 
@@ -901,6 +918,159 @@ export function Itinerary() {
             </div>
           </div>
         )}
+      </div>
+
+      <div
+        ref={refCompleto}
+        className="hidden w-full p-6 bg-white"
+        style={{ fontFamily: "sans-serif" }}
+      >
+        <h1 className="text-2xl font-bold mb-4 text-center">
+          {tripData.destination}
+        </h1>
+
+        {Array.from({ length: tripData.totalDays }).map((_, index) => {
+          const day = index + 1;
+          const pontos =
+            tripData.resultados?.filter(
+              (p) => p.dia === day && !detectarSeEhRestaurante(p)
+            ) || [];
+          const rests = restaurantes.filter((r) => r.dia === day);
+          const intercalados: JSX.Element[] = [];
+          const refeicoes = ["☕ Café da manhã", "🍽️ Almoço", "🌙 Jantar"];
+
+          if (rests.length === 3) {
+            const max = Math.max(rests.length, pontos.length);
+            for (let i = 0; i < max; i++) {
+              if (rests[i]) {
+                intercalados.push(
+                  <React.Fragment key={`rest-${rests[i].id}`}>
+                    <p className="text-sm text-gray-700 mb-1 ml-1">
+                      {refeicoes[i]}
+                    </p>
+                    <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
+                      <h3 className="text-base font-semibold">
+                        {rests[i].nome}
+                      </h3>
+                      {rests[i].endereco && (
+                        <p className="text-sm">📍 {rests[i].endereco}</p>
+                      )}
+                      {rests[i].rating && (
+                        <p className="text-sm">⭐ {rests[i].rating}</p>
+                      )}
+                    </li>
+                  </React.Fragment>
+                );
+              }
+              if (pontos[i]) {
+                intercalados.push(
+                  <div
+                    key={`ponto-${pontos[i].id}`}
+                    className="mb-4 p-4 border rounded bg-blue-200"
+                  >
+                    <p className="text-sm text-gray-700 mb-1 ml-1">
+                      🗺️ Ponto turístico
+                    </p>
+                    <h3 className="text-base font-semibold">
+                      {pontos[i].ponto_nome || pontos[i].nome}
+                    </h3>
+                    <p className="text-sm">
+                      {pontos[i].ponto_endereco || pontos[i].endereco}
+                    </p>
+                  </div>
+                );
+              }
+            }
+          }
+
+          return (
+            <div
+              key={day}
+              className="flex gap-6 mb-8"
+              style={{ pageBreakAfter: "always" }}
+            >
+              {/* COLUNA ESQUERDA - info fixa */}
+              <div className="w-1/2 space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold mb-2">
+                    Informações da Viagem
+                  </h2>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <MapPinIcon className="h-5 w-5 text-gray-400 mr-2" />
+                      {tripData.destination}
+                    </div>
+                    <div className="flex items-center">
+                      <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
+                      {formatarDataISO(tripData.startDate)} -{" "}
+                      {formatarDataISO(tripData.endDate)}
+                    </div>
+                    <div className="flex items-center">
+                      <ClockIcon className="h-5 w-5 text-gray-400 mr-2" />
+                      {tripData.totalDays} dias
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-lg font-medium text-gray-900 mb-2">
+                    Previsão do Tempo
+                  </h2>
+                  <ul className="space-y-2 text-sm">
+                    {tripData.clima?.length ? (
+                      tripData.clima.map((clima) => (
+                        <li
+                          key={clima.data}
+                          className="flex justify-between border-b pb-1"
+                        >
+                          <div className="flex items-center">
+                            {clima.descricao.includes("chuva")
+                              ? "🌧️"
+                              : clima.descricao.includes("sol")
+                              ? "☀️"
+                              : "☁️"}
+                            <span className="ml-2">
+                              {clima.descricao
+                                .replace("Possibilidade de ", "")
+                                .replace(/\birregular\b/gi, "")
+                                .replace(/\bParcialmente\b/gi, "")
+                                .trim()}
+                            </span>
+                          </div>
+                          <div>
+                            Min: {clima.temp_min}°C / Max: {clima.temp_max}°C
+                          </div>
+                        </li>
+                      ))
+                    ) : (
+                      <li>Nenhuma previsão disponível</li>
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <h2 className="text-lg font-medium text-gray-900 mb-2">
+                    Legenda
+                  </h2>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-yellow-100 rounded-full" />{" "}
+                      Restaurantes
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-blue-200 rounded-full" />{" "}
+                      Pontos Turísticos
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COLUNA DIREITA - Dia X */}
+              <div className="w-1/2">
+                <h2 className="text-xl font-bold mb-2">Dia {day}</h2>
+                {intercalados}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

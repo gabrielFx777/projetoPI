@@ -241,9 +241,6 @@ export function Dashboard() {
                         <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
                           <DownloadIcon className="h-4 w-4" />
                         </button>
-                        <button className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
-                          <ShareIcon className="h-4 w-4" />
-                        </button>
                       </div>
                     </div>
                     <div className="mt-4">

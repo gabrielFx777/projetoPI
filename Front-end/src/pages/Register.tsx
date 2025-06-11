@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { UserIcon, LockIcon, MailIcon, PhoneIcon } from "lucide-react";
+import InputMask from "react-input-mask";
 
 export function Register() {
   const [formData, setFormData] = useState({
@@ -186,15 +187,24 @@ export function Register() {
                     aria-hidden="true"
                   />
                 </div>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
+                <InputMask
+                  mask="(99) 99999-9999"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border px-3"
-                />
+                >
+                  {(inputProps) => (
+                    <input
+                      {...inputProps}
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="(11) 91234-5678"
+                      className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border px-3"
+                    />
+                  )}
+                </InputMask>
               </div>
             </div>
             <div>
