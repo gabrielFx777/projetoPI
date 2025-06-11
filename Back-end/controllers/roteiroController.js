@@ -662,19 +662,24 @@ async function buscarRoteiro(req, res) {
         .json({ error: "Parâmetros obrigatórios ausentes." });
     }
 
-    const geo = await axios.get("https://nominatim.openstreetmap.org/search", {
-      params: {
-        q: `${cidade}, ${pais}`,
-        format: "json",
-        limit: 1,
-      },
-    });
+    // ✅ USANDO MAPBOX PARA OBTER COORDENADAS
+    const mapboxResp = await axios.get(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        cidade
+      )}, ${encodeURIComponent(pais)}.json`,
+      {
+        params: {
+          access_token: process.env.MAPBOX_API_KEY,
+          limit: 1,
+        },
+      }
+    );
 
-    if (!geo.data || geo.data.length === 0) {
+    if (!mapboxResp.data.features || mapboxResp.data.features.length === 0) {
       return res.status(404).json({ error: "Cidade não encontrada" });
     }
 
-    const { lat, lon } = geo.data[0];
+    const [lon, lat] = mapboxResp.data.features[0].center;
 
     const mapaCategorias = {
       aventura: "sport",
@@ -742,7 +747,7 @@ async function buscarRoteiro(req, res) {
         .json({ error: "Nenhuma preferência válida enviada." });
     }
 
-    // Buscar pontos
+    // 🔍 Buscar pontos turísticos
     let pontosBrutos = await buscarPontosTuristicos(
       lat,
       lon,
@@ -750,9 +755,6 @@ async function buscarRoteiro(req, res) {
       1,
       10
     );
-
-    console.log("🌍 Categorias:", categorias);
-    console.log("📍 Pontos Brutos:", pontosBrutos);
 
     if (!pontosBrutos || pontosBrutos.length === 0) {
       console.warn("Nenhum ponto com categorias. Tentando fallback...");
@@ -782,15 +784,12 @@ async function buscarRoteiro(req, res) {
         error: "Nenhum ponto turístico disponível para detalhar.",
       });
     }
-    
+
     let pontosDetalhados = [];
     try {
       pontosDetalhados = await detalharPontos(pontosBrutos);
     } catch (e) {
-      console.error("❌ ERRO AO DETALHAR PONTOS:");
-      console.error("Mensagem:", e.message);
-      console.error("Stack:", e.stack);
-      console.error("Entrada recebida:", pontosBrutos);
+      console.error("Erro ao detalhar pontos:", e);
       return res.status(500).json({
         sucesso: false,
         error: "Erro ao detalhar pontos turísticos.",
