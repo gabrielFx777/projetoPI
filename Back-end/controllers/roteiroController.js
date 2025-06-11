@@ -751,6 +751,9 @@ async function buscarRoteiro(req, res) {
       10
     );
 
+    console.log("🌍 Categorias:", categorias);
+    console.log("📍 Pontos Brutos:", pontosBrutos);
+
     if (!pontosBrutos || pontosBrutos.length === 0) {
       console.warn("Nenhum ponto com categorias. Tentando fallback...");
       const pontosFallback = await buscarPontosTuristicos(
@@ -779,12 +782,15 @@ async function buscarRoteiro(req, res) {
         error: "Nenhum ponto turístico disponível para detalhar.",
       });
     }
-
+    
     let pontosDetalhados = [];
     try {
       pontosDetalhados = await detalharPontos(pontosBrutos);
     } catch (e) {
-      console.error("Erro ao detalhar pontos:", e);
+      console.error("❌ ERRO AO DETALHAR PONTOS:");
+      console.error("Mensagem:", e.message);
+      console.error("Stack:", e.stack);
+      console.error("Entrada recebida:", pontosBrutos);
       return res.status(500).json({
         sucesso: false,
         error: "Erro ao detalhar pontos turísticos.",
