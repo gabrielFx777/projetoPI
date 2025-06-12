@@ -3,7 +3,6 @@ const pool = require("../config/db");
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
-
 async function obterClimaPorIntervalo(req, res) {
   const { cidade, estado, pais, dataIda, dataVolta, roteiro_id } = req.body;
 
@@ -19,9 +18,10 @@ async function obterClimaPorIntervalo(req, res) {
     if (estado) queryLocal += (queryLocal ? ", " : "") + estado;
     if (pais) queryLocal += (queryLocal ? ", " : "") + pais;
 
-    // ✅ USAR MAPBOX
     const geoResp = await axios.get(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(queryLocal)}.json`,
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        queryLocal
+      )}.json`,
       {
         params: {
           access_token: process.env.MAPBOX_API_KEY,
@@ -30,17 +30,17 @@ async function obterClimaPorIntervalo(req, res) {
       }
     );
 
-    if (!geoResp.data.features.length) {
+    if (!geoResp.data.features || geoResp.data.features.length === 0) {
       return res.status(404).json({ message: "Local não encontrado." });
     }
 
     const [lon, lat] = geoResp.data.features[0].center;
 
-    const hoje = new Date();
+    const hoje = new Date(); // Data atual no servidor
     const dataVoltaDate = new Date(dataVolta);
     const diffTime = Math.abs(dataVoltaDate - hoje);
     const diffDays = Math.min(
-      3,
+      3, // <= limite da API gratuita
       Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
     );
 
@@ -56,12 +56,15 @@ async function obterClimaPorIntervalo(req, res) {
     });
 
     const insercoes = forecastDays
-      .filter((d) => d.date >= dataIda && d.date <= dataVolta)
+      .filter((d) => {
+        const dia = d.date;
+        return dia >= dataIda && dia <= dataVolta;
+      })
       .map((d) =>
         pool
           .query(
             `INSERT INTO clima_diario (roteiro_id, data, temp_min, temp_max, descricao)
-             VALUES ($1, $2, $3, $4, $5)`,
+           VALUES ($1, $2, $3, $4, $5)`,
             [
               roteiro_id,
               d.date,
