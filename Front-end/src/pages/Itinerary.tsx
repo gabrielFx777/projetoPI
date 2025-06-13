@@ -574,9 +574,7 @@ export function Itinerary() {
                             <span className="block text-xs text-gray-500">
                               {(() => {
                                 const start = tripData.startDate.split("T")[0];
-                                const startDate = new Date(
-                                  `${start}T00:00:00Z`
-                                );
+                                const startDate = new Date(`${start}T00:00`);
                                 const targetDate = new Date(
                                   startDate.getTime() +
                                     (day - 1) * 24 * 60 * 60 * 1000
