@@ -402,7 +402,7 @@ export function Itinerary() {
             refCompleto.current.style.display = "none";
           }
         });
-    }, 300); // Espera 300ms para garantir que o conteúdo foi renderizado
+    }, 500); // Espera 300ms para garantir que o conteúdo foi renderizado
   }
 
   return (
@@ -937,47 +937,44 @@ export function Itinerary() {
           const intercalados: JSX.Element[] = [];
           const refeicoes = ["☕ Café da manhã", "🍽️ Almoço", "🌙 Jantar"];
 
-          if (rests.length === 3) {
-            const max = Math.max(rests.length, pontos.length);
-            for (let i = 0; i < max; i++) {
-              if (rests[i]) {
-                intercalados.push(
-                  <React.Fragment key={`rest-${rests[i].id}`}>
-                    <p className="text-sm text-gray-700 mb-1 ml-1">
-                      {refeicoes[i]}
-                    </p>
-                    <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
-                      <h3 className="text-base font-semibold">
-                        {rests[i].nome}
-                      </h3>
-                      {rests[i].endereco && (
-                        <p className="text-sm">📍 {rests[i].endereco}</p>
-                      )}
-                      {rests[i].rating && (
-                        <p className="text-sm">⭐ {rests[i].rating}</p>
-                      )}
-                    </li>
-                  </React.Fragment>
-                );
-              }
-              if (pontos[i]) {
-                intercalados.push(
-                  <div
-                    key={`ponto-${pontos[i].id}`}
-                    className="mb-4 p-4 border rounded bg-blue-200"
-                  >
-                    <p className="text-sm text-gray-700 mb-1 ml-1">
-                      🗺️ Ponto turístico
-                    </p>
-                    <h3 className="text-base font-semibold">
-                      {pontos[i].ponto_nome || pontos[i].nome}
-                    </h3>
-                    <p className="text-sm">
-                      {pontos[i].ponto_endereco || pontos[i].endereco}
-                    </p>
-                  </div>
-                );
-              }
+          const max = Math.max(rests.length, pontos.length);
+          for (let i = 0; i < max; i++) {
+            if (rests[i]) {
+              intercalados.push(
+                <React.Fragment key={`rest-${rests[i].id}`}>
+                  <p className="text-sm text-gray-700 mb-1 ml-1">
+                    {refeicoes[i] || "🍽️ Refeição"}
+                  </p>
+                  <li className="border rounded p-4 bg-yellow-100 mb-4 list-none">
+                    <h3 className="text-base font-semibold">{rests[i].nome}</h3>
+                    {rests[i].endereco && (
+                      <p className="text-sm">📍 {rests[i].endereco}</p>
+                    )}
+                    {rests[i].rating && (
+                      <p className="text-sm">⭐ {rests[i].rating}</p>
+                    )}
+                  </li>
+                </React.Fragment>
+              );
+            }
+
+            if (pontos[i]) {
+              intercalados.push(
+                <div
+                  key={`ponto-${pontos[i].id}`}
+                  className="mb-4 p-4 border rounded bg-blue-200"
+                >
+                  <p className="text-sm text-gray-700 mb-1 ml-1">
+                    🗺️ Ponto turístico
+                  </p>
+                  <h3 className="text-base font-semibold">
+                    {pontos[i].ponto_nome || pontos[i].nome}
+                  </h3>
+                  <p className="text-sm">
+                    {pontos[i].ponto_endereco || pontos[i].endereco}
+                  </p>
+                </div>
+              );
             }
           }
 
@@ -1009,6 +1006,7 @@ export function Itinerary() {
                     </div>
                   </div>
                 </div>
+
                 <div>
                   <h2 className="text-lg font-medium text-gray-900 mb-2">
                     Previsão do Tempo
@@ -1044,6 +1042,7 @@ export function Itinerary() {
                     )}
                   </ul>
                 </div>
+
                 <div>
                   <h2 className="text-lg font-medium text-gray-900 mb-2">
                     Legenda
